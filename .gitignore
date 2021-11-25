@@ -1,4 +1,6 @@
 *.out
 *.exe
 *.prof
-.idea
+.idea/
+dependency/
+cmake-build-debug/
