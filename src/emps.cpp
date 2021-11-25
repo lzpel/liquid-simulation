@@ -37,22 +37,29 @@ char filename[256];
 int iLP, iF;
 double TIM;
 int nP;
-double *Acc, *Pos, *Vel, *Prs, *pav;
-int *Typ;
 double r, r2;
 double DB, DB2, DBinv;
 int nBx, nBy, nBz, nBxy, nBxyz;
-int *bfst, *blst, *nxt;
+int *bfst;
 double n0, lmd, A1, A2, A3, rlim, rlim2, COL;
 double Dns[NUM_TYP], invDns[NUM_TYP];
 
+struct Particle {
+    double Acc[3], Pos[3], Vel[3];
+    double Prs, pav;
+    int Typ;
+    int nxt;//同バケット内の次の粒子
+};
+
+Particle *ps;
+
 //関数01 計算領域を飛び出たら幽霊粒子に設定し計算から排除
-void ChkPcl(int i) {
-    if (Pos[i * 3] > MAX_X || Pos[i * 3] < MIN_X ||
-        Pos[i * 3 + 1] > MAX_Y || Pos[i * 3 + 1] < MIN_Y ||
-        Pos[i * 3 + 2] > MAX_Z || Pos[i * 3 + 2] < MIN_Z) {
-        Typ[i] = GST;
-        Prs[i] = Vel[i * 3] = Vel[i * 3 + 1] = Vel[i * 3 + 2] = 0.0;
+void ChkPcl(Particle &p) {
+    if (p.Pos[0] > MAX_X || p.Pos[0] < MIN_X ||
+        p.Pos[1] > MAX_Y || p.Pos[1] < MIN_Y ||
+        p.Pos[2] > MAX_Z || p.Pos[2] < MIN_Z) {
+        p.Typ = GST;
+        p.Prs = p.Vel[0] = p.Vel[1] = p.Vel[2] = 0.0;
     }
 }
 
@@ -61,56 +68,33 @@ void RdDat(void) {
     fp = fopen(IN_FILE, "r");
     fscanf(fp, "%d", &nP);
     printf("nP: %d\n", nP);
-    Acc = (double *) malloc(sizeof(double) * nP * 3);    //粒子の加速度
-    Pos = (double *) malloc(sizeof(double) * nP * 3);    //粒子の座標
-    Vel = (double *) malloc(sizeof(double) * nP * 3);    //粒子の速度
-    Prs = (double *) malloc(sizeof(double) * nP);        //粒子の圧力
-    pav = (double *) malloc(sizeof(double) * nP);        //時間平均された粒子の圧力
-    Typ = (int *) malloc(sizeof(int) * nP);            //粒子の種類
+    ps = new Particle[nP];
     for (int i = 0; i < nP; i++) {
+        int idx;
+        Particle &p = ps[i];
         int a[2];
         double b[8];
         //粒子番号　粒子種別(GST -1 FLD 0 WLL) 座標三次元　速度三次元　（加速度は0）
-        fscanf(fp, " %d %d %lf %lf %lf %lf %lf %lf %lf %lf", &a[0], &a[1], &b[0], &b[1], &b[2], &b[3], &b[4], &b[5],
-               &b[6], &b[7]);
-        Typ[i] = a[1];
-        Pos[i * 3] = b[0];
-        Pos[i * 3 + 1] = b[1];
-        Pos[i * 3 + 2] = b[2];
-        Vel[i * 3] = b[3];
-        Vel[i * 3 + 1] = b[4];
-        Vel[i * 3 + 2] = b[5];
-        Prs[i] = b[6];
-        pav[i] = b[7];
+        fscanf(fp, " %d %d %lf %lf %lf %lf %lf %lf %lf %lf", &idx, &p.Typ, &p.Pos[0], &p.Pos[1], &p.Pos[2], &p.Vel[0],
+               &p.Vel[1], &p.Vel[2], &p.Prs, &p.pav);
     }
     fclose(fp);
-    for (int i = 0; i < nP; i++) { ChkPcl(i); }
-    for (int i = 0; i < nP * 3; i++) { Acc[i] = 0.0; }
+    for (int i = 0; i < nP; i++) { ChkPcl(ps[i]); }
+    for (int i = 0; i < nP; i++) { ps[i].Acc[0] = ps[i].Acc[1] = ps[i].Acc[2] = 0.0; }
 }
 
 //関数03 状態書き込み
 void WrtDat(void) {
     char outout_filename[256];
-    sprintf(outout_filename, "output%05d.prof", iF);
+    sprintf(outout_filename, "outputNew%05d.prof", iF);
     fp = fopen(outout_filename, "w");
     fprintf(fp, "%d\n", nP);
     for (int i = 0; i < nP; i++) {
-        int a[2];
-        double b[8];
-        a[0] = i;
-        a[1] = Typ[i];
-        b[0] = Pos[i * 3];
-        b[1] = Pos[i * 3 + 1];
-        b[2] = Pos[i * 3 + 2];
-        b[3] = Vel[i * 3];
-        b[4] = Vel[i * 3 + 1];
-        b[5] = Vel[i * 3 + 2];
-        b[6] = Prs[i];
-        b[7] = pav[i] / OPT_FQC;
-        fprintf(fp, " %d %d %lf %lf %lf %lf %lf %lf %lf %lf\n", a[0], a[1], b[0], b[1], b[2], b[3], b[4], b[5], b[6],
-                b[7]);
+        Particle &p = ps[i];
+        fprintf(fp, " %d %d %lf %lf %lf %lf %lf %lf %lf %lf\n", i, p.Typ, p.Pos[0], p.Pos[1], p.Pos[2], p.Vel[0], p.Vel[1], p.Vel[2], p.Prs,
+                p.pav/OPT_FQC);
         //書き込みのタイミングで時間平均圧力をリセットしている
-        pav[i] = 0.0;
+        p.pav = 0.0;
     }
     fclose(fp);
     iF++;
@@ -131,8 +115,6 @@ void AlcBkt(void) {
     nBxyz = nBx * nBy * nBz;        //解析領域内のバケット数
     printf("nBx:%d  nBy:%d  nBz:%d  nBxy:%d  nBxyz:%d\n", nBx, nBy, nBz, nBxy, nBxyz);
     bfst = (int *) malloc(sizeof(int) * nBxyz);    //バケットに格納された先頭の粒子番号
-    blst = (int *) malloc(sizeof(int) * nBxyz);    //バケットに格納された最後尾の粒子番号
-    nxt = (int *) malloc(sizeof(int) * nP);        //同じバケット内の次の粒子番号
 }
 
 //関数05 粒子法にかかわるパラメータの設定
@@ -177,38 +159,40 @@ void SetPara(void) {
 //関数06 バケットのxyzを設定する
 void MkBkt(void) {
     for (int i = 0; i < nBxyz; i++) { bfst[i] = -1; }
-    for (int i = 0; i < nBxyz; i++) { blst[i] = -1; }
-    for (int i = 0; i < nP; i++) { nxt[i] = -1; }
+    for (int i = 0; i < nP; i++) { ps[i].nxt = -1; }
     for (int i = 0; i < nP; i++) {
+        Particle &p = ps[i];
         //計算しない
-        if (Typ[i] == GST)continue;
+        if (p.Typ == GST)continue;
         //DBinv = 1.0/DB;
-        int ix = (int) ((Pos[i * 3] - MIN_X) * DBinv) + 1;
-        int iy = (int) ((Pos[i * 3 + 1] - MIN_Y) * DBinv) + 1;
-        int iz = (int) ((Pos[i * 3 + 2] - MIN_Z) * DBinv) + 1;
+        int ix = (int) ((p.Pos[0] - MIN_X) * DBinv) + 1;
+        int iy = (int) ((p.Pos[1] - MIN_Y) * DBinv) + 1;
+        int iz = (int) ((p.Pos[2] - MIN_Z) * DBinv) + 1;
         //三次元的番号ib
-        int ib = iz * nBxy + iy * nBx + ix;
-        int j = blst[ib];
         //メモリ確保を最小限にするために特殊なリストを使っている、bfstは同バケット内の最初の粒子のリスト、blasは同バケット内の最後の粒子のリスト、nxtは同バケット内の次粒子のリスト
-        blst[ib] = i;
-        if (j == -1) { bfst[ib] = i; }
-        else { nxt[j] = i; }
+        int ib = iz * nBxy + iy * nBx + ix;
+        //int j = blst[ib];
+        //blst[ib] = i;
+        //if (j == -1) { bfst[ib] = i; }else { nxt[j] = i; }
+        p.nxt=bfst[ib];
+        bfst[ib]=i;
     }
 }
 
 //関数07 粘性項と重力を計算する関数
 void VscTrm() {
     for (int i = 0; i < nP; i++) {
-        if (Typ[i] == FLD) {
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
             double Acc_x = 0.0;
             double Acc_y = 0.0;
             double Acc_z = 0.0;
-            double pos_ix = Pos[i * 3];
-            double pos_iy = Pos[i * 3 + 1];
-            double pos_iz = Pos[i * 3 + 2];
-            double vec_ix = Vel[i * 3];
-            double vec_iy = Vel[i * 3 + 1];
-            double vec_iz = Vel[i * 3 + 2];
+            double pos_ix = pi.Pos[0];
+            double pos_iy = pi.Pos[1];
+            double pos_iz = pi.Pos[2];
+            double vec_ix = pi.Vel[0];
+            double vec_iy = pi.Vel[1];
+            double vec_iz = pi.Vel[2];
             int ix = (int) ((pos_ix - MIN_X) * DBinv) + 1;
             int iy = (int) ((pos_iy - MIN_Y) * DBinv) + 1;
             int iz = (int) ((pos_iz - MIN_Z) * DBinv) + 1;
@@ -219,34 +203,35 @@ void VscTrm() {
                         int j = bfst[jb];
                         if (j == -1) continue;
                         for (;;) {
+                            Particle &pj = ps[j];
                             //ここで周辺粒子が計算される
-                            double v0 = Pos[j * 3] - pos_ix;
-                            double v1 = Pos[j * 3 + 1] - pos_iy;
-                            double v2 = Pos[j * 3 + 2] - pos_iz;
+                            double v0 = pj.Pos[0] - pos_ix;
+                            double v1 = pj.Pos[1] - pos_iy;
+                            double v2 = pj.Pos[2] - pos_iz;
                             double dist2 = v0 * v0 + v1 * v1 + v2 * v2;
                             if (dist2 < r2) {
                                 //近傍
-                                if (j != i && Typ[j] != GST) {
+                                if (j != i && pj.Typ != GST) {
                                     //自分以外の流体粒子
                                     //ウェイトと掛け算してAccに加算、Accの次元はまだ速度であるはず
                                     double dist = sqrt(dist2);
                                     double w = WEI(dist, r);
-                                    Acc_x += (Vel[j * 3] - vec_ix) * w;
-                                    Acc_y += (Vel[j * 3 + 1] - vec_iy) * w;
-                                    Acc_z += (Vel[j * 3 + 2] - vec_iz) * w;
+                                    Acc_x += (pj.Vel[0] - vec_ix) * w;
+                                    Acc_y += (pj.Vel[1] - vec_iy) * w;
+                                    Acc_z += (pj.Vel[2] - vec_iz) * w;
                                 }
                             }
                             //イテレーター
-                            j = nxt[j];
+                            j = pj.nxt;
                             if (j == -1) break;
                         }
                     }
                 }
             }
             //係数A1によってAccの次元が速度から加速度に変わる、また重力を加算
-            Acc[i * 3] = Acc_x * A1 + G_X;
-            Acc[i * 3 + 1] = Acc_y * A1 + G_Y;
-            Acc[i * 3 + 2] = Acc_z * A1 + G_Z;
+            pi.Acc[0] = Acc_x * A1 + G_X;
+            pi.Acc[1] = Acc_y * A1 + G_Y;
+            pi.Acc[2] = Acc_z * A1 + G_Z;
         }
     }
 }
@@ -254,16 +239,17 @@ void VscTrm() {
 //関数08 加速度の修正項から位置と速度を求める関数
 void UpPcl1() {
     for (int i = 0; i < nP; i++) {
-        if (Typ[i] == FLD) {
-            Vel[i * 3] += Acc[i * 3] * DT;
-            Vel[i * 3 + 1] += Acc[i * 3 + 1] * DT;
-            Vel[i * 3 + 2] += Acc[i * 3 + 2] * DT;
-            Pos[i * 3] += Vel[i * 3] * DT;
-            Pos[i * 3 + 1] += Vel[i * 3 + 1] * DT;
-            Pos[i * 3 + 2] += Vel[i * 3 + 2] * DT;
-            Acc[i * 3] = Acc[i * 3 + 1] = Acc[i * 3 + 2] = 0.0;
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
+            pi.Vel[0] += pi.Acc[0] * DT;
+            pi.Vel[1] += pi.Acc[1] * DT;
+            pi.Vel[2] += pi.Acc[2] * DT;
+            pi.Pos[0] += pi.Vel[0] * DT;
+            pi.Pos[1] += pi.Vel[1] * DT;
+            pi.Pos[2] += pi.Vel[2] * DT;
+            pi.Acc[0] = pi.Acc[1] = pi.Acc[2] = 0.0;
             //計算領域を飛び出たら幽霊粒子に設定し計算から排除
-            ChkPcl(i);
+            ChkPcl(pi);
         }
     }
 }
@@ -271,17 +257,18 @@ void UpPcl1() {
 //関数09 粒子の剛体衝突判定
 void ChkCol() {
     for (int i = 0; i < nP; i++) {
-        if (Typ[i] == FLD) {
-            double mi = Dns[Typ[i]];
-            double pos_ix = Pos[i * 3];
-            double pos_iy = Pos[i * 3 + 1];
-            double pos_iz = Pos[i * 3 + 2];
-            double vec_ix = Vel[i * 3];
-            double vec_iy = Vel[i * 3 + 1];
-            double vec_iz = Vel[i * 3 + 2];
-            double vec_ix2 = Vel[i * 3];
-            double vec_iy2 = Vel[i * 3 + 1];
-            double vec_iz2 = Vel[i * 3 + 2];
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
+            double mi = Dns[pi.Typ];
+            double pos_ix = pi.Pos[0];
+            double pos_iy = pi.Pos[1];
+            double pos_iz = pi.Pos[2];
+            double vec_ix = pi.Vel[0];
+            double vec_iy = pi.Vel[1];
+            double vec_iz = pi.Vel[2];
+            double vec_ix2 = pi.Vel[0];
+            double vec_iy2 = pi.Vel[1];
+            double vec_iz2 = pi.Vel[2];
             int ix = (int) ((pos_ix - MIN_X) * DBinv) + 1;
             int iy = (int) ((pos_iy - MIN_Y) * DBinv) + 1;
             int iz = (int) ((pos_iz - MIN_Z) * DBinv) + 1;
@@ -291,23 +278,23 @@ void ChkCol() {
                         int jb = jz * nBxy + jy * nBx + jx;
                         int j = bfst[jb];
                         if (j == -1) continue;
-                        //周辺バケットの例のイテレータ
                         for (;;) {
+                            Particle &pj = ps[j];
                             //相対座標v=xj-xi
-                            double v0 = Pos[j * 3] - pos_ix;
-                            double v1 = Pos[j * 3 + 1] - pos_iy;
-                            double v2 = Pos[j * 3 + 2] - pos_iz;
+                            double v0 = pj.Pos[0] - pos_ix;
+                            double v1 = pj.Pos[1] - pos_iy;
+                            double v2 = pj.Pos[2] - pos_iz;
                             double dist2 = v0 * v0 + v1 * v1 + v2 * v2;
                             if (dist2 < rlim2) {
                                 //衝突判定用二乗距離rlim2以内
-                                if (j != i && Typ[j] != GST) {
+                                if (j != i && pj.Typ != GST) {
                                     //かつ自分以外の計算可能粒子
-                                    double fDT = (vec_ix - Vel[j * 3]) * v0 + (vec_iy - Vel[j * 3 + 1]) * v1 +
-                                                 (vec_iz - Vel[j * 3 + 2]) * v2;
+                                    double fDT = (vec_ix - pj.Vel[0]) * v0 + (vec_iy - pj.Vel[1]) * v1 +
+                                                 (vec_iz - pj.Vel[2]) * v2;
                                     if (fDT > 0.0) {
                                         //veli-velj * xj-xi >0 で内積から対向を判定
                                         //粒子種別に応じた密度
-                                        double mj = Dns[Typ[j]];
+                                        double mj = Dns[pj.Typ];
                                         // TODO: この反発式は何？
                                         fDT *= COL * mj / (mi + mj) / dist2;
                                         vec_ix2 -= v0 * fDT;
@@ -316,31 +303,34 @@ void ChkCol() {
                                     }
                                 }
                             }
-                            j = nxt[j];
+                            j = pj.nxt;
                             if (j == -1) break;
                         }
                     }
                 }
             }
-            Acc[i * 3] = vec_ix2;
-            Acc[i * 3 + 1] = vec_iy2;
-            Acc[i * 3 + 2] = vec_iz2;
+            pi.Acc[0] = vec_ix2;
+            pi.Acc[1] = vec_iy2;
+            pi.Acc[2] = vec_iz2;
         }
     }
     for (int i = 0; i < nP; i++) {
-        Vel[i * 3] = Acc[i * 3];
-        Vel[i * 3 + 1] = Acc[i * 3 + 1];
-        Vel[i * 3 + 2] = Acc[i * 3 + 2];
+        Particle &pi = ps[i];
+        //TODO: 次元整合？
+        pi.Vel[0] = pi.Acc[0];
+        pi.Vel[1] = pi.Acc[1];
+        pi.Vel[2] = pi.Acc[2];
     }
 }
 
 //関数10 仮の圧力を求める
 void MkPrs() {
     for (int i = 0; i < nP; i++) {
-        if (Typ[i] != GST) {
-            double pos_ix = Pos[i * 3];
-            double pos_iy = Pos[i * 3 + 1];
-            double pos_iz = Pos[i * 3 + 2];
+        Particle &pi = ps[i];
+        if (pi.Typ != GST) {
+            double pos_ix = pi.Pos[0];
+            double pos_iy = pi.Pos[1];
+            double pos_iz = pi.Pos[2];
             double ni = 0.0;
             int ix = (int) ((pos_ix - MIN_X) * DBinv) + 1;
             int iy = (int) ((pos_iy - MIN_Y) * DBinv) + 1;
@@ -352,29 +342,30 @@ void MkPrs() {
                         int j = bfst[jb];
                         if (j == -1) continue;
                         for (;;) {
-                            //例のリスト構造、自分以外の計算可能な流体粒子
-                            double v0 = Pos[j * 3] - pos_ix;
-                            double v1 = Pos[j * 3 + 1] - pos_iy;
-                            double v2 = Pos[j * 3 + 2] - pos_iz;
+                            Particle &pj = ps[j];
+                            //相対座標v=xj-xi
+                            double v0 = pj.Pos[0] - pos_ix;
+                            double v1 = pj.Pos[1] - pos_iy;
+                            double v2 = pj.Pos[2] - pos_iz;
                             double dist2 = v0 * v0 + v1 * v1 + v2 * v2;
                             if (dist2 < r2) {
-                                if (j != i && Typ[j] != GST) {
+                                if (j != i && pj.Typ != GST) {
                                     double dist = sqrt(dist2);
                                     double w = WEI(dist, r);
                                     //単純に1*wを足している、自分を計算から省いているが圧力を求めるうえで適切なのか？
                                     ni += w;
                                 }
                             }
-                            j = nxt[j];
+                            j = pj.nxt;
                             if (j == -1) break;
                         }
                     }
                 }
             }
-            double mi = Dns[Typ[i]];
+            double mi = Dns[pi.Typ];
             //技巧的な式、0か仮圧力が求まる、0は表面粒子、粒子毎にprs[i]に圧力を入れる
             double pressure = (ni > n0) * (ni - n0) * A2 * mi;
-            Prs[i] = pressure;
+            pi.Prs = pressure;
         }
     }
 }
@@ -382,14 +373,15 @@ void MkPrs() {
 //関数11 圧力勾配項を求める関数
 void PrsGrdTrm() {
     for (int i = 0; i < nP; i++) {
-        if (Typ[i] == FLD) {
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
             double Acc_x = 0.0;
             double Acc_y = 0.0;
             double Acc_z = 0.0;
-            double pos_ix = Pos[i * 3];
-            double pos_iy = Pos[i * 3 + 1];
-            double pos_iz = Pos[i * 3 + 2];
-            double pre_min = Prs[i];
+            double pos_ix = pi.Pos[0];
+            double pos_iy = pi.Pos[1];
+            double pos_iz = pi.Pos[2];
+            double pre_min = pi.Prs;
             int ix = (int) ((pos_ix - MIN_X) * DBinv) + 1;
             int iy = (int) ((pos_iy - MIN_Y) * DBinv) + 1;
             int iz = (int) ((pos_iz - MIN_Z) * DBinv) + 1;
@@ -400,17 +392,18 @@ void PrsGrdTrm() {
                         int j = bfst[jb];
                         if (j == -1) continue;
                         for (;;) {
-                            double v0 = Pos[j * 3] - pos_ix;
-                            double v1 = Pos[j * 3 + 1] - pos_iy;
-                            double v2 = Pos[j * 3 + 2] - pos_iz;
+                            Particle &pj = ps[j];
+                            double v0 = pj.Pos[0] - pos_ix;
+                            double v1 = pj.Pos[1] - pos_iy;
+                            double v2 = pj.Pos[2] - pos_iz;
                             double dist2 = v0 * v0 + v1 * v1 + v2 * v2;
                             if (dist2 < r2) {
-                                if (j != i && Typ[j] != GST) {
+                                if (j != i && pj.Typ != GST) {
                                     //自分以外の周辺粒子の影響範囲計算可能粒子に最低圧力を保証している
-                                    if (pre_min > Prs[j])pre_min = Prs[j];
+                                    if (pre_min > pj.Prs)pre_min = pj.Prs;
                                 }
                             }
-                            j = nxt[j];
+                            j = pj.nxt;
                             if (j == -1) break;
                         }
                     }
@@ -423,30 +416,31 @@ void PrsGrdTrm() {
                         int j = bfst[jb];
                         if (j == -1) continue;
                         for (;;) {
-                            double v0 = Pos[j * 3] - pos_ix;
-                            double v1 = Pos[j * 3 + 1] - pos_iy;
-                            double v2 = Pos[j * 3 + 2] - pos_iz;
+                            Particle &pj = ps[j];
+                            double v0 = pj.Pos[0] - pos_ix;
+                            double v1 = pj.Pos[1] - pos_iy;
+                            double v2 = pj.Pos[2] - pos_iz;
                             double dist2 = v0 * v0 + v1 * v1 + v2 * v2;
                             if (dist2 < r2) {
-                                if (j != i && Typ[j] != GST) {
+                                if (j != i && pj.Typ != GST) {
                                     //自分以外の周辺粒子の影響範囲計算可能粒子から圧力による反発力を受けて加速度を修正している
                                     double dist = sqrt(dist2);
                                     double w = WEI(dist, r);
-                                    w *= (Prs[j] - pre_min) / dist2;
+                                    w *= (pj.Prs - pre_min) / dist2;
                                     Acc_x += v0 * w;
                                     Acc_y += v1 * w;
                                     Acc_z += v2 * w;
                                 }
                             }
-                            j = nxt[j];
+                            j = pj.nxt;
                             if (j == -1) break;
                         }
                     }
                 }
             }
-            Acc[i * 3] = Acc_x * invDns[FLD] * A3;
-            Acc[i * 3 + 1] = Acc_y * invDns[FLD] * A3;
-            Acc[i * 3 + 2] = Acc_z * invDns[FLD] * A3;
+            pi.Acc[0] = Acc_x * invDns[FLD] * A3;
+            pi.Acc[1] = Acc_y * invDns[FLD] * A3;
+            pi.Acc[2] = Acc_z * invDns[FLD] * A3;
         }
     }
 }
@@ -454,15 +448,16 @@ void PrsGrdTrm() {
 //関数12 加速度に沿った移動二回目
 void UpPcl2(void) {
     for (int i = 0; i < nP; i++) {
-        if (Typ[i] == FLD) {
-            Vel[i * 3] += Acc[i * 3] * DT;
-            Vel[i * 3 + 1] += Acc[i * 3 + 1] * DT;
-            Vel[i * 3 + 2] += Acc[i * 3 + 2] * DT;
-            Pos[i * 3] += Acc[i * 3] * DT * DT;
-            Pos[i * 3 + 1] += Acc[i * 3 + 1] * DT * DT;
-            Pos[i * 3 + 2] += Acc[i * 3 + 2] * DT * DT;
-            Acc[i * 3] = Acc[i * 3 + 1] = Acc[i * 3 + 2] = 0.0;
-            ChkPcl(i);
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
+            pi.Vel[0] += pi.Acc[0] * DT;
+            pi.Vel[1] += pi.Acc[1] * DT;
+            pi.Vel[2] += pi.Acc[2] * DT;
+            pi.Pos[0] += pi.Acc[0] * DT * DT;
+            pi.Pos[1] += pi.Acc[1] * DT * DT;
+            pi.Pos[2] += pi.Acc[2] * DT * DT;
+            pi.Acc[0] = pi.Acc[1] = pi.Acc[2] = 0.0;
+            ChkPcl(pi);
         }
     }
 }
@@ -472,7 +467,7 @@ void ClcEMPS(void) {
         if (iLP % 100 == 0) {
             //標準出力
             int p_num = 0;
-            for (int i = 0; i < nP; i++) { if (Typ[i] != GST)p_num++; }
+            for (int i = 0; i < nP; i++) { if (ps[i].Typ != GST)p_num++; }
             printf("%5d th TIM: %lf / p_num: %d\n", iLP, TIM, p_num);
         }
         if (iLP % OPT_FQC == 0) {
@@ -489,7 +484,7 @@ void ClcEMPS(void) {
         UpPcl2();//移動
         MkPrs();//仮圧力
         /// TODO なんでMkPrsを二回呼ぶと二回目は陰解法として扱えるのか理解する
-        for (int i = 0; i < nP; i++) { pav[i] += Prs[i]; }
+        for (int i = 0; i < nP; i++) { ps[i].pav += ps[i].Prs; }
         iLP++;
         TIM += DT;
     }
@@ -516,16 +511,8 @@ int main(int argc, char **argv) {
     double timer_end = get_dtime();
     printf("Total        : %13.6lf sec\n", timer_end - timer_sta);
 
-
-    free(Acc);
-    free(Pos);
-    free(Vel);
-    free(Prs);
-    free(pav);
-    free(Typ);
     free(bfst);
-    free(blst);
-    free(nxt);
+    delete[] ps;
     printf("end emps.\n");
     return 0;
 }
