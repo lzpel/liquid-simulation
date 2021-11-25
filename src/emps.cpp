@@ -503,9 +503,7 @@ double get_dtime(void) {
     return ((double) (tv.tv_sec) + (double) (tv.tv_usec) * 0.000001);
 }
 
-int output(void);
 int main(int argc, char **argv) {
-    output();
     printf("start emps.\n");
     RdDat();
     AlcBkt();
