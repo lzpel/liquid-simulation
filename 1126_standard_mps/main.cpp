@@ -16,7 +16,7 @@
 #define FLD 0                //流体粒子の種類番号
 #define WLL  1            //壁粒子の種類番号
 #define NUM_TYP  2        //粒子の種類数
-#define DNS_FLD 1000        //流体粒子の密度
+#define DNS_FLD 1000        //流体粒子の密度 1m^2=1000kg
 #define DNS_WLL 1000        //壁粒子の密度
 #define DT 0.0005            //時間刻み幅
 #define FIN_TIM 1.0        //時間の上限
