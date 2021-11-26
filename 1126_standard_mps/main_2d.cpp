@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <string.h>
+#include <vector>
 
-#define IN_FILE "../mk_particle/dambreak.prof"
+#define IN_FILE "./dambreak.prof"
 #define PCL_DST 0.02                    //平均粒子間距離
 #define MIN_X  (0.0 - PCL_DST*3)    //解析領域のx方向の最小値
 #define MIN_Y  (0.0 - PCL_DST*3)    //解析領域のy方向の最小値
@@ -23,7 +23,7 @@
 #define SND 22.0            //音速
 #define OPT_FQC 100        //出力間隔を決める反復数
 #define KNM_VSC 0.000001    //動粘性係数
-#define DIM 3                //次元数
+#define DIM 2                //次元数
 #define CRT_NUM 0.1        //クーラン条件数
 #define COL_RAT 0.2        //接近した粒子の反発率
 #define DST_LMT_RAT 0.9    //これ以上の粒子間の接近を許さない距離の係数
@@ -51,7 +51,7 @@ struct Particle {
     int nxt;//同バケット内の次の粒子
 };
 
-Particle *ps;
+std::vector<Particle> ps;
 
 //関数01 計算領域を飛び出たら幽霊粒子に設定し計算から排除
 void ChkPcl(Particle &p) {
@@ -68,15 +68,19 @@ void RdDat(void) {
     fp = fopen(IN_FILE, "r");
     fscanf(fp, "%d", &nP);
     printf("nP: %d\n", nP);
-    ps = new Particle[nP];
-    for (int i = 0; i < nP; i++) {
+    ps = std::vector<Particle>();
+    while (true) {
         int idx;
-        Particle &p = ps[i];
-        int a[2];
-        double b[8];
+        Particle p;
         //粒子番号　粒子種別(GST -1 FLD 0 WLL) 座標三次元　速度三次元　（加速度は0）
-        fscanf(fp, " %d %d %lf %lf %lf %lf %lf %lf %lf %lf", &idx, &p.Typ, &p.Pos[0], &p.Pos[1], &p.Pos[2], &p.Vel[0],
-               &p.Vel[1], &p.Vel[2], &p.Prs, &p.pav);
+        if (fscanf(fp, " %d %d %lf %lf %lf %lf %lf %lf %lf %lf", &idx, &p.Typ, &p.Pos[0], &p.Pos[1], &p.Pos[2], &p.Vel[0], &p.Vel[1], &p.Vel[2], &p.Prs, &p.pav) == EOF) {
+            nP=ps.size();
+            break;
+        }
+        if ((DIM == 2) && (p.Pos[1] != 0)) {
+            continue;
+        }
+        ps.push_back(p);
     }
     fclose(fp);
     for (int i = 0; i < nP; i++) { ChkPcl(ps[i]); }
@@ -92,7 +96,7 @@ void WrtDat(void) {
     for (int i = 0; i < nP; i++) {
         Particle &p = ps[i];
         fprintf(fp, " %d %d %lf %lf %lf %lf %lf %lf %lf %lf\n", i, p.Typ, p.Pos[0], p.Pos[1], p.Pos[2], p.Vel[0], p.Vel[1], p.Vel[2], p.Prs,
-                p.pav/OPT_FQC);
+                p.pav / OPT_FQC);
         //書き込みのタイミングで時間平均圧力をリセットしている
         p.pav = 0.0;
     }
@@ -124,6 +128,7 @@ void SetPara(void) {
     double tlmd = 0.0;
     for (int ix = -4; ix < 5; ix++) {
         for (int iy = -4; iy < 5; iy++) {
+            if (DIM == 2 && iy != 0)continue;
             for (int iz = -4; iz < 5; iz++) {
                 double x = PCL_DST * (double) ix;
                 double y = PCL_DST * (double) iy;
@@ -138,8 +143,8 @@ void SetPara(void) {
             }
         }
     }
-    n0 = tn0;            //初期粒子数密度
-    lmd = tlmd / tn0;    //ラプラシアンモデルの係数λ
+    n0 = tn0;            //p30 初期粒子数密度
+    lmd = tlmd / tn0;    //p30 ラプラシアンモデルの係数λ
 
     A1 = 2.0 * KNM_VSC * DIM / n0 / lmd;//粘性項の計算に用いる係数
     A2 = SND * SND / n0;                //圧力の計算に用いる係数
@@ -174,8 +179,8 @@ void MkBkt(void) {
         //int j = blst[ib];
         //blst[ib] = i;
         //if (j == -1) { bfst[ib] = i; }else { nxt[j] = i; }
-        p.nxt=bfst[ib];
-        bfst[ib]=i;
+        p.nxt = bfst[ib];
+        bfst[ib] = i;
     }
 }
 
@@ -512,7 +517,6 @@ int main(int argc, char **argv) {
     printf("Total        : %13.6lf sec\n", timer_end - timer_sta);
 
     free(bfst);
-    delete[] ps;
     printf("end emps.\n");
     return 0;
 }
