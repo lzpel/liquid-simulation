@@ -24,7 +24,7 @@
 #define SND 22.0            //音速
 #define OPT_FQC 100        //出力間隔を決める反復数
 #define KNM_VSC 0.000001    //動粘性係数
-#define DIM 2                //次元数
+#define DIM 3                //次元数
 #define CRT_NUM 0.1        //クーラン条件数
 #define COL_RAT 0.2        //接近した粒子の反発率
 #define DST_LMT_RAT 0.9    //これ以上の粒子間の接近を許さない距離の係数
@@ -67,7 +67,8 @@ void ChkPcl(Particle &p) {
 //関数02 初期状態読み込み
 void RdDat(void) {
     fp = fopen(IN_FILE, "r");
-    fscanf(fp, "%d", &nP);
+    double distance, density;
+    fscanf(fp, "%lf %lf", &distance, &density);
     ps = std::vector<Particle>();
     while (true) {
         int idx;
@@ -475,6 +476,7 @@ void ClcEMPS(void) {
             int p_num = 0;
             for (int i = 0; i < nP; i++) { if (ps[i].Typ != GST)p_num++; }
             printf("%5d th TIM: %lf / p_num: %d\n", iLP, TIM, p_num);
+            fflush(stdout);
         }
         if (iLP % OPT_FQC == 0) {
             //ファイル出力

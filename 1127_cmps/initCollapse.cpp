@@ -61,7 +61,7 @@ int main(int argc, char** argv){
 
 	FILE* fp;
 	fp = fopen(OUTPUT_FILE, "w");
-    printf("%lf %d\n",PARTICLE_DISTANCE, 1000);
+    fprintf(fp, "%lf %d\n",PARTICLE_DISTANCE, 1000);
 	int k=0;
 	for(int iz=0;iz<nz;iz++){
 	for(int iy=0;iy<ny;iy++){
