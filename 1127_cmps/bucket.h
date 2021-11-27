@@ -5,7 +5,7 @@
 #include "cfloat"
 
 #define BUCKETINDEXXYZ(P) const int ix = int((P[0] - min[0]) / length) + 1, iy = int((P[1] - min[1]) / length) + 1,iz = int((P[2] - min[2]) / length) + 1
-#define BUCKETINDEX(dx,dy,dz) ((iz+(dz)) * sizeX * sizeY + (iy+(dy)) * sizeX + (ix+(dx)))
+#define BUCKETINDEX(dx,dy,dz) ((dz) * sizeX * sizeY + (dy) * sizeX + (dx))
 
 struct Bucket {
     double max[3], min[3];
@@ -13,8 +13,7 @@ struct Bucket {
     double length;
     std::vector<int> first;
     std::vector<int> nxt;
-    signed list333index;
-    signed list333[27];
+    signed iteratorCorner,iteratorCube;
 
     Bucket() {
         min[0] = min[1] = min[2] = DBL_MAX;
@@ -49,48 +48,28 @@ struct Bucket {
 
     void add(const double pos[3], int index) {
         BUCKETINDEXXYZ(pos);
-        const int ib=BUCKETINDEX(0,0,0);
+        const int ib=BUCKETINDEX(ix,iy,iz);
         nxt[index] = first[ib];
         first[ib] = index;
     }
 
-    int iterator(const double *pos) {
+    inline int iterator(const double *pos) {
         BUCKETINDEXXYZ(pos);
-        list333index=0;
-        list333[0]=BUCKETINDEX(0,0,0);
-        list333[1]=BUCKETINDEX(0,0,+1);
-        list333[2]=BUCKETINDEX(0,0,-1);
-        list333[3]=BUCKETINDEX(0,+1,0);
-        list333[4]=BUCKETINDEX(0,+1,+1);
-        list333[5]=BUCKETINDEX(0,+1,-1);
-        list333[6]=BUCKETINDEX(0,-1,0);
-        list333[7]=BUCKETINDEX(0,-1,+1);
-        list333[8]=BUCKETINDEX(0,-1,-1);
-        list333[9]=BUCKETINDEX(+1,0,0);
-        list333[10]=BUCKETINDEX(+1,0,+1);
-        list333[11]=BUCKETINDEX(+1,0,-1);
-        list333[12]=BUCKETINDEX(+1,+1,0);
-        list333[13]=BUCKETINDEX(+1,+1,+1);
-        list333[14]=BUCKETINDEX(+1,+1,-1);
-        list333[15]=BUCKETINDEX(+1,-1,0);
-        list333[16]=BUCKETINDEX(+1,-1,+1);
-        list333[17]=BUCKETINDEX(+1,-1,-1);
-        list333[18]=BUCKETINDEX(-1,0,0);
-        list333[19]=BUCKETINDEX(-1,0,+1);
-        list333[20]=BUCKETINDEX(-1,0,-1);
-        list333[21]=BUCKETINDEX(-1,+1,0);
-        list333[22]=BUCKETINDEX(-1,+1,+1);
-        list333[23]=BUCKETINDEX(-1,+1,-1);
-        list333[24]=BUCKETINDEX(-1,-1,0);
-        list333[25]=BUCKETINDEX(-1,-1,+1);
-        list333[26]=BUCKETINDEX(-1,-1,-1);
-        return first[list333[list333index]];
+        iteratorCorner=BUCKETINDEX(ix-1,iy-1,iz-1);
+        iteratorCube=0;
+        return iteratorIndex();
     }
-    inline int next(int n){
-        int i=nxt[n];
+    inline int next(const int before){
+        const int i=nxt[before];
         if(i!=-1)return i;
-        list333index++;
-        if(list333index<27)return first[list333[list333index]];
+        iteratorCube++;
+        return iteratorIndex();
+    }
+    inline int iteratorIndex(){
+        for(;iteratorCube<27;iteratorCube++){
+            const int r=first[iteratorCorner+BUCKETINDEX((iteratorCube/9)%3,(iteratorCube/3)%3,(iteratorCube/1)%3)];
+            if(r!=-1)return r;
+        }
         return -1;
     }
 };
