@@ -399,8 +399,7 @@ void ClcEMPS(void) {
         MkPrs();//仮圧力
         PrsGrdTrm();//圧力勾配加速度
         UpPcl2();//移動
-        MkPrs();//仮圧力
-        /// TODO なんでMkPrsを二回呼ぶと二回目は陰解法として扱えるのか理解する
+        // MkPrs();//仮圧力
         for (int i = 0; i < nP; i++) { ps[i].pav += ps[i].Prs; }
         iLP++;
         TIM += DT;
