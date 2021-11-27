@@ -46,7 +46,7 @@ double Dns[NUM_TYP], invDns[NUM_TYP];
 
 struct Particle {
     double Acc[3], Pos[3], Vel[3];
-    double Prs, pav;
+    double Prs, PrsNearMin, pav;
     int Typ;
 };
 
@@ -90,7 +90,7 @@ void RdDat(void) {
 //関数03 状態書き込み
 void WrtDat(void) {
     char outout_filename[256];
-    sprintf(outout_filename, "outputNew%05d.prof", iF);
+    sprintf(outout_filename, "output%05d.prof", iF);
     fp = fopen(outout_filename, "w");
     fprintf(fp, "%d\n", nP);
     for (int i = 0; i < nP; i++) {
@@ -297,7 +297,7 @@ void MkPrs() {
                 double v0 = pj.Pos[0] - pos_ix;
                 double v1 = pj.Pos[1] - pos_iy;
                 double v2 = pj.Pos[2] - pos_iz;
-                double dist2 = v0 * v0 + v1 * v1 + v2 * v2;
+                double dist2 = distance2(v0, v1, v2);
                 if (dist2 < r2) {
                     if (j != i && pj.Typ != GST) {
                         double dist = sqrt(dist2);
@@ -320,26 +320,22 @@ void PrsGrdTrm() {
     for (int i = 0; i < nP; i++) {
         Particle &pi = ps[i];
         if (pi.Typ == FLD) {
+            pi.PrsNearMin=DBL_MAX;
+            for (int j = bucket.iterator(pi.Pos); j != -1; j = bucket.next(j)) {
+                Particle &pj = ps[j];
+                if (distance2(pj.Pos[0] - pi.Pos[0],pj.Pos[1] - pi.Pos[1],pj.Pos[2] - pi.Pos[2]) < r2 && pj.Typ != GST) pi.PrsNearMin=fmin(pi.PrsNearMin,pj.Prs);
+            }
+        }
+    }
+    for (int i = 0; i < nP; i++) {
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
             double Acc_x = 0.0;
             double Acc_y = 0.0;
             double Acc_z = 0.0;
             double pos_ix = pi.Pos[0];
             double pos_iy = pi.Pos[1];
             double pos_iz = pi.Pos[2];
-            double pre_min = pi.Prs;
-            for (int j = bucket.iterator(pi.Pos); j != -1; j = bucket.next(j)) {
-                Particle &pj = ps[j];
-                double v0 = pj.Pos[0] - pos_ix;
-                double v1 = pj.Pos[1] - pos_iy;
-                double v2 = pj.Pos[2] - pos_iz;
-                double dist2 = v0 * v0 + v1 * v1 + v2 * v2;
-                if (dist2 < r2) {
-                    if (j != i && pj.Typ != GST) {
-                        //自分以外の周辺粒子の影響範囲計算可能粒子に最低圧力を保証している
-                        if (pre_min > pj.Prs)pre_min = pj.Prs;
-                    }
-                }
-            }
             for (int j = bucket.iterator(pi.Pos); j != -1; j = bucket.next(j)) {
                 Particle &pj = ps[j];
                 double v0 = pj.Pos[0] - pos_ix;
@@ -351,7 +347,7 @@ void PrsGrdTrm() {
                         //自分以外の周辺粒子の影響範囲計算可能粒子から圧力による反発力を受けて加速度を修正している
                         double dist = sqrt(dist2);
                         double w = WEI(dist, r);
-                        w *= (pj.Prs - pre_min) / dist2;
+                        w *= (pi.Prs + pj.Prs - pi.PrsNearMin - pj.PrsNearMin) / dist2;
                         Acc_x += v0 * w;
                         Acc_y += v1 * w;
                         Acc_z += v2 * w;

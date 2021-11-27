@@ -5,6 +5,7 @@
 #pragma once
 
 enum class Type { GHOST=0, FLUID, WALL, DEM };
+inline double distance2(double x,double y,double z){return x*x+y*y+z*z;}
 #define VectorScalar(x,y,z,scalar) {(x)*(scalar),(y)*(scalar),(z)*(scalar)}
 #define InnerProduct(a,b) ((a)[0]*(b)[0]+(a)[1]*(b)[1]+(a)[2]*(b)[2])
 #define Kernel(distance, radius) ((radius/distance) - 1.0)
