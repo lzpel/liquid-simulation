@@ -67,7 +67,7 @@ struct Bucket {
     }
     inline int iteratorIndex(){
         for(;iteratorCube<27;iteratorCube++){
-            const int r=first[iteratorCorner+BUCKETINDEX((iteratorCube/9)%3,(iteratorCube/3)%3,(iteratorCube/1)%3)];
+            const int r=first[iteratorCorner+BUCKETINDEX((iteratorCube/1)%3,(iteratorCube/3)%3,(iteratorCube/9)%3)];
             if(r!=-1)return r;
         }
         return -1;
