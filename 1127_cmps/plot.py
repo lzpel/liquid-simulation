@@ -42,7 +42,7 @@ for i in glob.glob("*.prof"):
         # 曲線を描画
         ax.scatter(*([x, z] if y is None else [x, y, z]), s = 3**2, c = data[0], cmap = ListedColormap(['b', 'b', '#00ff0011']))
 
-        if True:
+        if False:
             plt.show()
         else:
             plt.savefig(i+".png")
