@@ -20,11 +20,13 @@ for i in glob.glob("*.prof"):
         z = data[3]
 
         if (y is not None) and np.ptp(y)>0 and (z is not None) and np.ptp(z)>0 :
+            z,y=y,z
             ax = fig.add_subplot(111, projection='3d')
             ax.set_xlabel("x")
-            ax.set_ylabel("y")
-            ax.set_zlabel("z")
+            ax.set_ylabel("z")
+            ax.set_zlabel("y")
             ax.set_box_aspect((np.ptp(x), np.ptp(y), np.ptp(z)))
+            ax.view_init(elev=0, azim=-90)
         else:
             ax = fig.add_subplot(111)
             ax.set_xlabel("x")
@@ -45,7 +47,7 @@ for i in glob.glob("*.prof"):
         # 曲線を描画
         ax.scatter(*([x, y] if z is None else [x, y, z]), s = 3**2, c = data[0], cmap = ListedColormap(['b', 'b', '#00ff0011']))
 
-        if False:
+        if 0:
             plt.show()
         else:
             plt.savefig(i+".png")

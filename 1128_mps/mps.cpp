@@ -13,18 +13,18 @@
 #define DIM                  2
 #define PARTICLE_DISTANCE    0.025
 #define DT                   0.001
-#define OUTPUT_INTERVAL      20
+#define OUTPUT_INTERVAL      4
 
 /* for three-dimensional simulation */
 /*
 #define DIM                  3
 #define PARTICLE_DISTANCE    0.075
-#define DT                   0.003
-#define OUTPUT_INTERVAL      2 
+#define DT                   0.004
+#define OUTPUT_INTERVAL      1
 */
 
 #define ARRAY_SIZE           5000
-#define FINISH_TIME          2.0
+#define FINISH_TIME          0.1
 #define KINEMATIC_VISCOSITY  (1.0E-6)
 #define FLUID_DENSITY        1000.0
 #define G_X  0.0
