@@ -285,6 +285,8 @@ void ChkCol() {
 void MkPrs() {
     // SNDが音速かは怪しい
     // CMPSHS法の言いたいことはdn/dt=(n*-n0)/n0の部分をDn/Dtのラグランジュ/物質/実質微分に変換し、移動を加味することにありそう
+    // 標準MPSは越塚p48でDn/Dt≒uk+1-uk/dtと近似式であることを認めている
+    // なんで連立方程式を解いてないのかも調べる、越塚p54が私の理解の境界線→p100ここでは陽解法を説明する
     const double A2 = SND * SND / n0;
     for (int i = 0; i < nP; i++) {
         Particle &pi = ps[i];
