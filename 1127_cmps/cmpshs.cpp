@@ -5,8 +5,8 @@
 #include "defs.h"
 #include "bucket.h"
 
-#define IN_FILE "./initCollapse.prof"
-#define PCL_DST 0.02                    //平均粒子間距離
+#define IN_FILE "./init20cm.prof"
+double PCL_DST;                    //平均粒子間距離
 #define MIN_X  (0.0 - PCL_DST*3)    //解析領域のx方向の最小値
 #define MIN_Y  (0.0 - PCL_DST*3)    //解析領域のy方向の最小値
 #define MIN_Z  (0.0 - PCL_DST*3)    //解析領域のz方向の最小値
@@ -25,7 +25,7 @@
 #define SND 22.0            //音速
 #define OPT_FQC 100        //出力間隔を決める反復数
 #define KNM_VSC 0.000001    //動粘性係数
-#define DIM 3                //次元数
+#define DIM 2                //次元数
 #define CRT_NUM 0.1        //クーラン条件数
 #define COL_RAT 0.2        //接近した粒子の反発率
 #define DST_LMT_RAT 0.9    //これ以上の粒子間の接近を許さない距離の係数
@@ -65,8 +65,8 @@ void ChkPcl(Particle &p) {
 //関数02 初期状態読み込み
 void RdDat(void) {
     fp = fopen(IN_FILE, "r");
-    double distance, density;
-    fscanf(fp, "%lf %lf", &distance, &density);
+    double density;
+    fscanf(fp, "%lf %lf", &PCL_DST, &density);
     ps = std::vector<Particle>();
     while (true) {
         int idx;
