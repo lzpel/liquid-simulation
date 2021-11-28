@@ -41,7 +41,7 @@ double TIM;
 int nP;
 double r, r2;
 Bucket bucket;
-double n0, lmd, A1, A2, rlim, rlim2, COL;
+double n0, lmd, A1, rlim, rlim2, COL;
 double Dns[NUM_TYP], invDns[NUM_TYP];
 
 struct Particle {
@@ -144,7 +144,6 @@ void SetPara(void) {
     lmd = tlmd / tn0;    //p30 ラプラシアンモデルの係数λ
 
     A1 = 2.0 * KNM_VSC * DIM / n0 / lmd;//粘性項の計算に用いる係数
-    A2 = SND * SND / n0;                //圧力の計算に用いる係数
     Dns[FLD] = DNS_FLD;
     Dns[WLL] = DNS_WLL;
     invDns[FLD] = 1.0 / DNS_FLD;
@@ -284,6 +283,9 @@ void ChkCol() {
 
 //関数10 仮の圧力を求める
 void MkPrs() {
+    // SNDが音速かは怪しい
+    // CMPSHS法の言いたいことはdn/dt=(n*-n0)/n0の部分をDn/Dtのラグランジュ/物質/実質微分に変換し、移動を加味することにありそう
+    const double A2 = SND * SND / n0;
     for (int i = 0; i < nP; i++) {
         Particle &pi = ps[i];
         if (pi.Typ != GST) {
@@ -314,8 +316,9 @@ void MkPrs() {
     }
 }
 
-//関数11 圧力勾配項を求める関数
+//関数11 圧力勾配項を求める関数 ∇pを求めて加速度に線形変換
 void PrsGrdTrm() {
+    //p74 CMPS
     const double A3 = -DIM / n0;//圧力勾配項の計算に用いる係数
     for (int i = 0; i < nP; i++) {
         Particle &pi = ps[i];
@@ -399,8 +402,6 @@ void ClcEMPS(void) {
         MkPrs();//仮圧力
         PrsGrdTrm();//圧力勾配加速度
         UpPcl2();//移動
-        MkPrs();//仮圧力
-        /// TODO なんでMkPrsを二回呼ぶと二回目は陰解法として扱えるのか理解する
         for (int i = 0; i < nP; i++) { ps[i].pav += ps[i].Prs; }
         iLP++;
         TIM += DT;
