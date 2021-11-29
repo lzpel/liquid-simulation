@@ -1,855 +1,432 @@
-/*=====================================================================
-  mps.c   
-  (c) Kazuya SHIBATA, Kohei MUROTANI and Seiichi KOSHIZUKA (2014) 
-
-   Fluid Simulation Program Based on a Particle Method (the MPS method)
-   Last update: May 21, 2014
-=======================================================================*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <string.h>
-#include "step.h"
+#include <vector>
+#include "defs.h"
+#include "bucket.h"
 
-#define DIM                  2
-#define PARTICLE_DISTANCE    0.025
-#define DT                   0.001
-#define OUTPUT_INTERVAL      4
+#define IN_FILE "./initCollapse.prof"
+#define PCL_DST 0.02                    //平均粒子間距離
+#define MIN_X  (0.0 - PCL_DST*3)    //解析領域のx方向の最小値
+#define MIN_Y  (0.0 - PCL_DST*3)    //解析領域のy方向の最小値
+#define MIN_Z  (0.0 - PCL_DST*3)    //解析領域のz方向の最小値
+#define MAX_X  (1.0 + PCL_DST*3)    //解析領域のx方向の最大値
+#define MAX_Y  (0.2 + PCL_DST*3)    //解析領域のy方向の最大値
+#define MAX_Z  (0.6 + PCL_DST*30)    //解析領域のz方向の最大値
 
-/* for three-dimensional simulation */
-/*
-#define DIM                  3
-#define PARTICLE_DISTANCE    0.075
-#define DT                   0.004
-#define OUTPUT_INTERVAL      1
-*/
+#define GST int(Type::GHOST)            //計算対象外粒子の種類番号
+#define FLD int(Type::FLUID)                //流体粒子の種類番号
+#define WLL int(Type::WALL)            //壁粒子の種類番号
+#define NUM_TYP  10        //粒子の種類数
+#define DNS_FLD 1000        //流体粒子の密度
+#define DNS_WLL 1000        //壁粒子の密度
+#define DT 0.0005            //時間刻み幅
+#define FIN_TIM 1.0        //時間の上限
+#define SND 22.0            //音速
+#define OPT_FQC 100        //出力間隔を決める反復数
+#define KNM_VSC 0.000001    //動粘性係数
+const int DIM = 3;                //次元数
+#define CRT_NUM 0.1        //クーラン条件数
+#define COL_RAT 0.2        //接近した粒子の反発率
+#define DST_LMT_RAT 0.9    //これ以上の粒子間の接近を許さない距離の係数
+#define G_X 0.0            //重力加速度のx成分
+#define G_Y 0.0            //重力加速度のy成分
+#define G_Z -9.8            //重力加速度のz成分
+#define WEI(dist, re) ((re/dist) - 1.0)    //重み関数
 
-#define ARRAY_SIZE           5000
-#define FINISH_TIME          0.1
-#define KINEMATIC_VISCOSITY  (1.0E-6)
-#define FLUID_DENSITY        1000.0
-#define G_X  0.0
-#define G_Y  -9.8
-#define G_Z  0.0
-#define RADIUS_FOR_NUMBER_DENSITY  (2.1*PARTICLE_DISTANCE)
-#define RADIUS_FOR_GRADIENT        (2.1*PARTICLE_DISTANCE)
-#define RADIUS_FOR_LAPLACIAN       (3.1*PARTICLE_DISTANCE)
-#define COLLISION_DISTANCE         (0.5*PARTICLE_DISTANCE)
-#define THRESHOLD_RATIO_OF_NUMBER_DENSITY  0.97
-#define COEFFICIENT_OF_RESTITUTION 0.2
-#define COMPRESSIBILITY (0.45E-9)
-#define EPS             (0.01 * PARTICLE_DISTANCE)
-#define ON              1
-#define OFF             0
-#define RELAXATION_COEFFICIENT_FOR_PRESSURE 0.2
-#define GHOST  -1
-#define FLUID   0
-#define WALL    2
-#define DUMMY_WALL  3
-#define GHOST_OR_DUMMY  -1
-#define SURFACE_PARTICLE 1
-#define INNER_PARTICLE   0
-#define DIRICHLET_BOUNDARY_IS_NOT_CONNECTED 0
-#define DIRICHLET_BOUNDARY_IS_CONNECTED     1
-#define DIRICHLET_BOUNDARY_IS_CHECKED       2
+FILE *fp;
+char filename[256];
+int iLP, iF;
+double TIM;
+int nP;
+double r, r2;
+Bucket bucket;
+double n0, lmd, A1, A2, rlim, rlim2, COL;
+double Dns[NUM_TYP], invDns[NUM_TYP];
 
-void initializeParticlePositionAndVelocity_for2dim(void);
+struct Particle {
+    double Acc[3], Pos[3], Vel[3];
+    double Prs, PrsNearMin, pav;
+    int Typ;
+};
 
-void initializeParticlePositionAndVelocity_for3dim(void);
+std::vector<Particle> ps;
 
-void calConstantParameter(void);
+//関数01 計算領域を飛び出たら幽霊粒子に設定し計算から排除
+void ChkPcl(Particle &p) {
+    if (p.Pos[0] > MAX_X || p.Pos[0] < MIN_X ||
+        p.Pos[1] > MAX_Y || p.Pos[1] < MIN_Y ||
+        p.Pos[2] > MAX_Z || p.Pos[2] < MIN_Z) {
+        p.Typ = GST;
+        p.Prs = p.Vel[0] = p.Vel[1] = p.Vel[2] = 0.0;
+    }
+}
 
-void calNZeroAndLambda(void);
+//関数02 初期状態読み込み
+void RdDat(void) {
+    fp = fopen(IN_FILE, "r");
+    double distance, density;
+    fscanf(fp, "%lf %lf", &distance, &density);
+    ps = std::vector<Particle>();
+    while (true) {
+        int idx;
+        Particle p = {};
+        //粒子番号　粒子種別(GST -1 FLD 0 WLL) 座標三次元　速度三次元　（加速度は0）
+        if (fscanf(fp, " %d %lf %lf %lf", &p.Typ, &p.Pos[0], &p.Pos[1], &p.Pos[2]) == EOF) {
+            nP = ps.size();
+            break;
+        }
+        if ((DIM == 2) && (p.Pos[1] != 0)) {
+            continue;
+        }
+        ps.push_back(p);
+    }
+    printf("nP: %d\n", nP);
+    fclose(fp);
+    for (int i = 0; i < nP; i++) { ChkPcl(ps[i]); }
+    for (int i = 0; i < nP; i++) { ps[i].Acc[0] = ps[i].Acc[1] = ps[i].Acc[2] = 0.0; }
+}
 
-double weight(double distance, double re);
+//関数03 状態書き込み
+void WrtDat(void) {
+    char outout_filename[256];
+    sprintf(outout_filename, "output%05d.prof", iF);
+    fp = fopen(outout_filename, "w");
+    fprintf(fp, "%d\n", nP);
+    for (int i = 0; i < nP; i++) {
+        Particle &p = ps[i];
+        fprintf(fp, "%d %lf %lf %lf %lf %lf %lf %lf %lf\n", p.Typ, p.Pos[0], p.Pos[1], p.Pos[2], p.Vel[0], p.Vel[1], p.Vel[2], p.Prs,
+                p.pav / OPT_FQC);
+        //書き込みのタイミングで時間平均圧力をリセットしている
+        p.pav = 0.0;
+    }
+    fclose(fp);
+    iF++;
+}
 
-void mainLoopOfSimulation(void);
+//関数04 バケット構造のメモリを確保する
+void AlcBkt(void) {
+    //なんで2.1なの？
+    r = PCL_DST * 2.1;        //影響半径
+    r2 = r * r;
+    bucket.min[0] = MIN_X;
+    bucket.min[1] = MIN_Y;
+    bucket.min[2] = MIN_Z;
+    bucket.max[0] = MAX_X;
+    bucket.max[1] = MAX_Y;
+    bucket.max[2] = MAX_Z;
+    bucket.rangeUpdateFinish(ps.size(), r * (1.0 + CRT_NUM));
+}
 
-void calGravity(void);
+//関数05 粒子法にかかわるパラメータの設定
+void SetPara(void) {
+    //理想的な格子の状態で粒子数密度とラプラシアンモデルの係数を求めている
+    double tn0 = 0.0;
+    double tlmd = 0.0;
+    for (int ix = -4; ix < 5; ix++) {
+        for (int iy = -4; iy < 5; iy++) {
+            if (DIM == 2 && iy != 0)continue;
+            for (int iz = -4; iz < 5; iz++) {
+                double x = PCL_DST * (double) ix;
+                double y = PCL_DST * (double) iy;
+                double z = PCL_DST * (double) iz;
+                double dist2 = x * x + y * y + z * z;
+                if (dist2 <= r2) {
+                    if (dist2 == 0.0)continue;
+                    double dist = sqrt(dist2);
+                    tn0 += WEI(dist, r);
+                    tlmd += dist2 * WEI(dist, r);
+                }
+            }
+        }
+    }
+    n0 = tn0;            //p30 初期粒子数密度
+    lmd = tlmd / tn0;    //p30 ラプラシアンモデルの係数λ
 
-void calViscosity(void);
+    A1 = 2.0 * KNM_VSC * DIM / n0 / lmd;//粘性項の計算に用いる係数
+    A2 = SND * SND / n0;                //圧力の計算に用いる係数
+    Dns[FLD] = DNS_FLD;
+    Dns[WLL] = DNS_WLL;
+    invDns[FLD] = 1.0 / DNS_FLD;
+    invDns[WLL] = 1.0 / DNS_WLL;
+    rlim = PCL_DST * DST_LMT_RAT;//これ以上の粒子間の接近を許さない距離
+    rlim2 = rlim * rlim;
+    COL = 1.0 + COL_RAT;
+    iLP = 0;            //反復数
+    iF = 0;            //ファイル番号
+    TIM = 0.0;        //時刻
+}
 
-void moveParticle(void);
+//関数06 バケットのxyzを設定する
+void MkBkt(void) {
+    bucket.clear();
+    for (int i = 0; i < nP; i++) {
+        Particle &p = ps[i];
+        //計算しない
+        if (p.Typ == GST)continue;
+        bucket.add(p.Pos, i);
+    }
+}
 
-void collision(void);
+//関数07 粘性項と重力を計算する関数
+void VscTrm() {
+    for (int i = 0; i < nP; i++) {
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
+            double Acc_x = 0.0;
+            double Acc_y = 0.0;
+            double Acc_z = 0.0;
+            double pos_ix = pi.Pos[0];
+            double pos_iy = pi.Pos[1];
+            double pos_iz = pi.Pos[2];
+            double vec_ix = pi.Vel[0];
+            double vec_iy = pi.Vel[1];
+            double vec_iz = pi.Vel[2];
+            for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+                Particle &pj = ps[*j];
+                double v0 = pj.Pos[0] - pos_ix;
+                double v1 = pj.Pos[1] - pos_iy;
+                double v2 = pj.Pos[2] - pos_iz;
+                double dist2 = v0 * v0 + v1 * v1 + v2 * v2;
+                if (dist2 < r2) {
+                    //近傍
+                    if (*j != i && pj.Typ != GST) {
+                        //自分以外の流体粒子
+                        //ウェイトと掛け算してAccに加算、Accの次元はまだ速度であるはず
+                        double dist = sqrt(dist2);
+                        double w = WEI(dist, r);
+                        Acc_x += (pj.Vel[0] - vec_ix) * w;
+                        Acc_y += (pj.Vel[1] - vec_iy) * w;
+                        Acc_z += (pj.Vel[2] - vec_iz) * w;
+                    }
+                }
+            }
+            //係数A1によってAccの次元が速度から加速度に変わる、また重力を加算
+            pi.Acc[0] = Acc_x * A1 + G_X;
+            pi.Acc[1] = Acc_y * A1 + G_Y;
+            pi.Acc[2] = Acc_z * A1 + G_Z;
+        }
+    }
+}
 
-void calPressure(void);
+//関数08 加速度の修正項から位置と速度を求める関数
+void UpPcl1() {
+    for (int i = 0; i < nP; i++) {
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
+            pi.Vel[0] += pi.Acc[0] * DT;
+            pi.Vel[1] += pi.Acc[1] * DT;
+            pi.Vel[2] += pi.Acc[2] * DT;
+            pi.Pos[0] += pi.Vel[0] * DT;
+            pi.Pos[1] += pi.Vel[1] * DT;
+            pi.Pos[2] += pi.Vel[2] * DT;
+            pi.Acc[0] = pi.Acc[1] = pi.Acc[2] = 0.0;
+            //計算領域を飛び出たら幽霊粒子に設定し計算から排除
+            ChkPcl(pi);
+        }
+    }
+}
 
-void calNumberDensity(void);
+//関数09 粒子の剛体衝突判定
+void ChkCol() {
+    for (int i = 0; i < nP; i++) {
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
+            double mi = Dns[pi.Typ];
+            double pos_ix = pi.Pos[0];
+            double pos_iy = pi.Pos[1];
+            double pos_iz = pi.Pos[2];
+            double vec_ix = pi.Vel[0];
+            double vec_iy = pi.Vel[1];
+            double vec_iz = pi.Vel[2];
+            double vec_ix2 = pi.Vel[0];
+            double vec_iy2 = pi.Vel[1];
+            double vec_iz2 = pi.Vel[2];
+            for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+                Particle &pj = ps[*j];
+                //相対座標v=xj-xi
+                double v0 = pj.Pos[0] - pos_ix;
+                double v1 = pj.Pos[1] - pos_iy;
+                double v2 = pj.Pos[2] - pos_iz;
+                double dist2 = v0 * v0 + v1 * v1 + v2 * v2;
+                if (dist2 < rlim2) {
+                    //衝突判定用二乗距離rlim2以内
+                    if (*j != i && pj.Typ != GST) {
+                        //かつ自分以外の計算可能粒子
+                        double fDT = (vec_ix - pj.Vel[0]) * v0 + (vec_iy - pj.Vel[1]) * v1 +
+                                     (vec_iz - pj.Vel[2]) * v2;
+                        if (fDT > 0.0) {
+                            //veli-velj * xj-xi >0 で内積から対向を判定
+                            //粒子種別に応じた密度
+                            double mj = Dns[pj.Typ];
+                            // TODO: この反発式は何？
+                            fDT *= COL * mj / (mi + mj) / dist2;
+                            vec_ix2 -= v0 * fDT;
+                            vec_iy2 -= v1 * fDT;
+                            vec_iz2 -= v2 * fDT;
+                        }
+                    }
+                }
+            }
+            pi.Acc[0] = vec_ix2;
+            pi.Acc[1] = vec_iy2;
+            pi.Acc[2] = vec_iz2;
+        }
+    }
+    for (int i = 0; i < nP; i++) {
+        Particle &pi = ps[i];
+        //TODO: 次元整合？
+        pi.Vel[0] = pi.Acc[0];
+        pi.Vel[1] = pi.Acc[1];
+        pi.Vel[2] = pi.Acc[2];
+    }
+}
 
-void setBoundaryCondition(void);
+//関数10 仮の圧力を求める
+void MkPrs() {
+    for (int i = 0; i < nP; i++) {
+        Particle &pi = ps[i];
+        if (pi.Typ != GST) {
+            double pos_ix = pi.Pos[0];
+            double pos_iy = pi.Pos[1];
+            double pos_iz = pi.Pos[2];
+            double ni = 0.0;
+            for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+                Particle &pj = ps[*j];
+                //相対座標v=xj-xi
+                double v0 = pj.Pos[0] - pos_ix;
+                double v1 = pj.Pos[1] - pos_iy;
+                double v2 = pj.Pos[2] - pos_iz;
+                double dist2 = distance2(v0, v1, v2);
+                if (dist2 < r2) {
+                    if (*j != i && pj.Typ != GST) {
+                        double dist = sqrt(dist2);
+                        double w = WEI(dist, r);
+                        ni += w;
+                    }
+                }
+            }
+            double mi = Dns[pi.Typ];
+            //技巧的な式、0か仮圧力が求まる、0は表面粒子、粒子毎にprs[i]に圧力を入れる
+            double pressure = (ni > n0) * (ni - n0) * A2 * mi;
+            pi.Prs = pressure;
+        }
+    }
+}
 
-void setSourceTerm(void);
+//関数11 圧力勾配項を求める関数
+void PrsGrdTrm() {
+    const double A3 = -DIM / n0;//圧力勾配項の計算に用いる係数
+    for (int i = 0; i < nP; i++) {
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
+            pi.PrsNearMin=DBL_MAX;
+            for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+                Particle &pj = ps[*j];
+                if (distance2(pj.Pos[0] - pi.Pos[0],pj.Pos[1] - pi.Pos[1],pj.Pos[2] - pi.Pos[2]) < r2 && pj.Typ != GST) pi.PrsNearMin=fmin(pi.PrsNearMin,pj.Prs);
+            }
+        }
+    }
+    for (int i = 0; i < nP; i++) {
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
+            double Acc_x = 0.0;
+            double Acc_y = 0.0;
+            double Acc_z = 0.0;
+            double pos_ix = pi.Pos[0];
+            double pos_iy = pi.Pos[1];
+            double pos_iz = pi.Pos[2];
+            for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+                Particle &pj = ps[*j];
+                double v0 = pj.Pos[0] - pos_ix;
+                double v1 = pj.Pos[1] - pos_iy;
+                double v2 = pj.Pos[2] - pos_iz;
+                double dist2 = v0 * v0 + v1 * v1 + v2 * v2;
+                if (dist2 < r2) {
+                    if (*j != i && pj.Typ != GST) {
+                        //自分以外の周辺粒子の影響範囲計算可能粒子から圧力による反発力を受けて加速度を修正している
+                        double dist = sqrt(dist2);
+                        double w = WEI(dist, r);
+                        w *= (pi.Prs + pj.Prs - pi.PrsNearMin - pj.PrsNearMin) / dist2;
+                        Acc_x += v0 * w;
+                        Acc_y += v1 * w;
+                        Acc_z += v2 * w;
+                    }
+                }
+            }
+            pi.Acc[0] = Acc_x * invDns[FLD] * A3;
+            pi.Acc[1] = Acc_y * invDns[FLD] * A3;
+            pi.Acc[2] = Acc_z * invDns[FLD] * A3;
+        }
+    }
+}
 
-void setMatrix(void);
+//関数12 加速度に沿った移動二回目
+void UpPcl2(void) {
+    for (int i = 0; i < nP; i++) {
+        Particle &pi = ps[i];
+        if (pi.Typ == FLD) {
+            pi.Vel[0] += pi.Acc[0] * DT;
+            pi.Vel[1] += pi.Acc[1] * DT;
+            pi.Vel[2] += pi.Acc[2] * DT;
+            pi.Pos[0] += pi.Acc[0] * DT * DT;
+            pi.Pos[1] += pi.Acc[1] * DT * DT;
+            pi.Pos[2] += pi.Acc[2] * DT * DT;
+            pi.Acc[0] = pi.Acc[1] = pi.Acc[2] = 0.0;
+            ChkPcl(pi);
+        }
+    }
+}
 
-void exceptionalProcessingForBoundaryCondition(void);
+void ClcEMPS(void) {
+    while (1) {
+        if (iLP % 100 == 0) {
+            //標準出力
+            int p_num = 0;
+            for (int i = 0; i < nP; i++) { if (ps[i].Typ != GST)p_num++; }
+            printf("%5d th TIM: %lf / p_num: %d\n", iLP, TIM, p_num);
+            fflush(stdout);
+        }
+        if (iLP % OPT_FQC == 0) {
+            //ファイル出力
+            WrtDat();
+            if (TIM >= FIN_TIM) { break; }
+        }
+        MkBkt();//バケット設定
+        VscTrm();//粘性項重力項
+        UpPcl1();//移動
+        ChkCol();//剛体判定check collision
+        MkPrs();//仮圧力
+        PrsGrdTrm();//圧力勾配加速度
+        UpPcl2();//移動
+        // MkPrs();//仮圧力
+        for (int i = 0; i < nP; i++) { ps[i].pav += ps[i].Prs; }
+        iLP++;
+        TIM += DT;
+    }
+}
 
-void checkBoundaryCondition(void);
+#include <sys/time.h>
 
-void increaseDiagonalTerm(void);
-
-void solveSimultaniousEquationsByGaussEliminationMethod(void);
-
-void removeNegativePressure(void);
-
-void setMinimumPressure(void);
-
-void calPressureGradient(void);
-
-void moveParticleUsingPressureGradient(void);
-
-void writeData_inProfFormat(void);
-
-void writeData_inVtuFormat(void);
-
-static double Acceleration[3 * ARRAY_SIZE];
-static int ParticleType[ARRAY_SIZE];
-static double Position[3 * ARRAY_SIZE];
-static double Velocity[3 * ARRAY_SIZE];
-static double Pressure[ARRAY_SIZE];
-static double NumberDensity[ARRAY_SIZE];
-static int BoundaryCondition[ARRAY_SIZE];
-static double SourceTerm[ARRAY_SIZE];
-static int FlagForCheckingBoundaryCondition[ARRAY_SIZE];
-static double CoefficientMatrix[ARRAY_SIZE * ARRAY_SIZE];
-static double MinimumPressure[ARRAY_SIZE];
-int FileNumber;
-double Time;
-int NumberOfParticles;
-double Re_forNumberDensity, Re2_forNumberDensity;
-double Re_forGradient, Re2_forGradient;
-double Re_forLaplacian, Re2_forLaplacian;
-double N0_forNumberDensity;
-double N0_forGradient;
-double N0_forLaplacian;
-double Lambda;
-double collisionDistance, collisionDistance2;
-double FluidDensity;
-
+double get_dtime(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return ((double) (tv.tv_sec) + (double) (tv.tv_usec) * 0.000001);
+}
 
 int main(int argc, char **argv) {
+    printf("start emps.\n");
+    RdDat();
+    AlcBkt();
+    SetPara();
 
-    printf("\n*** START PARTICLE-SIMULATION ***\n");
-    if (DIM == 2) {
-        initializeParticlePositionAndVelocity_for2dim();
-    } else {
-        initializeParticlePositionAndVelocity_for3dim();
-    }
-    calConstantParameter();
-    mainLoopOfSimulation();
-    printf("*** END ***\n\n");
+    double timer_sta = get_dtime();
+
+    ClcEMPS();
+
+    double timer_end = get_dtime();
+    printf("Total        : %13.6lf sec\n", timer_end - timer_sta);
+
+    printf("end emps.\n");
     return 0;
 }
-
-
-void initializeParticlePositionAndVelocity_for2dim(void) {
-    int iX, iY;
-    int nX, nY;
-    double x, y, z;
-    int i = 0;
-    int flagOfParticleGeneration;
-
-    nX = (int) (1.0 / PARTICLE_DISTANCE) + 5;
-    nY = (int) (0.6 / PARTICLE_DISTANCE) + 5;
-    for (iX = -4; iX < nX; iX++) {
-        for (iY = -4; iY < nY; iY++) {
-            x = PARTICLE_DISTANCE * (double) (iX);
-            y = PARTICLE_DISTANCE * (double) (iY);
-            z = 0.0;
-            flagOfParticleGeneration = OFF;
-
-            /* dummy wall region */
-            if (((x > -4.0 * PARTICLE_DISTANCE + EPS) && (x <= 1.00 + 4.0 * PARTICLE_DISTANCE + EPS)) && ((y > 0.0 - 4.0 * PARTICLE_DISTANCE + EPS) && (y <= 0.6 + EPS))) {
-                ParticleType[i] = DUMMY_WALL;
-                flagOfParticleGeneration = ON;
-            }
-
-            /* wall region */
-            if (((x > -2.0 * PARTICLE_DISTANCE + EPS) && (x <= 1.00 + 2.0 * PARTICLE_DISTANCE + EPS)) && ((y > 0.0 - 2.0 * PARTICLE_DISTANCE + EPS) && (y <= 0.6 + EPS))) {
-                ParticleType[i] = WALL;
-                flagOfParticleGeneration = ON;
-            }
-
-            /* wall region */
-            if (((x > -4.0 * PARTICLE_DISTANCE + EPS) && (x <= 1.00 + 4.0 * PARTICLE_DISTANCE + EPS)) && ((y > 0.6 - 2.0 * PARTICLE_DISTANCE + EPS) && (y <= 0.6 + EPS))) {
-                ParticleType[i] = WALL;
-                flagOfParticleGeneration = ON;
-            }
-
-            /* empty region */
-            if (((x > 0.0 + EPS) && (x <= 1.00 + EPS)) && (y > 0.0 + EPS)) {
-                flagOfParticleGeneration = OFF;
-            }
-
-            /* fluid region */
-            if (((x > 0.0 + EPS) && (x <= 0.25 + EPS)) && ((y > 0.0 + EPS) && (y <= 0.50 + EPS))) {
-                ParticleType[i] = FLUID;
-                flagOfParticleGeneration = ON;
-            }
-
-            if (flagOfParticleGeneration == ON) {
-                Position[i * 3] = x;
-                Position[i * 3 + 1] = y;
-                Position[i * 3 + 2] = z;
-                i++;
-            }
-        }
-    }
-    NumberOfParticles = i;
-    for (i = 0; i < NumberOfParticles * 3; i++) { Velocity[i] = 0.0; }
-}
-
-
-void initializeParticlePositionAndVelocity_for3dim(void) {
-    int iX, iY, iZ;
-    int nX, nY, nZ;
-    double x, y, z;
-    int i = 0;
-    int flagOfParticleGeneration;
-
-    nX = (int) (1.0 / PARTICLE_DISTANCE) + 5;
-    nY = (int) (0.6 / PARTICLE_DISTANCE) + 5;
-    nZ = (int) (0.3 / PARTICLE_DISTANCE) + 5;
-    for (iX = -4; iX < nX; iX++) {
-        for (iY = -4; iY < nY; iY++) {
-            for (iZ = -4; iZ < nZ; iZ++) {
-                x = PARTICLE_DISTANCE * iX;
-                y = PARTICLE_DISTANCE * iY;
-                z = PARTICLE_DISTANCE * iZ;
-                flagOfParticleGeneration = OFF;
-
-                /* dummy wall region */
-                if ((((x > -4.0 * PARTICLE_DISTANCE + EPS) && (x <= 1.00 + 4.0 * PARTICLE_DISTANCE + EPS)) && ((y > 0.0 - 4.0 * PARTICLE_DISTANCE + EPS) && (y <= 0.6 + EPS))) && ((z > 0.0 - 4.0 * PARTICLE_DISTANCE + EPS) && (z <= 0.3 + 4.0 * PARTICLE_DISTANCE + EPS))) {
-                    ParticleType[i] = DUMMY_WALL;
-                    flagOfParticleGeneration = ON;
-                }
-
-                /* wall region */
-                if ((((x > -2.0 * PARTICLE_DISTANCE + EPS) && (x <= 1.00 + 2.0 * PARTICLE_DISTANCE + EPS)) && ((y > 0.0 - 2.0 * PARTICLE_DISTANCE + EPS) && (y <= 0.6 + EPS))) && ((z > 0.0 - 2.0 * PARTICLE_DISTANCE + EPS) && (z <= 0.3 + 2.0 * PARTICLE_DISTANCE + EPS))) {
-                    ParticleType[i] = WALL;
-                    flagOfParticleGeneration = ON;
-                }
-
-                /* wall region */
-                if ((((x > -4.0 * PARTICLE_DISTANCE + EPS) && (x <= 1.00 + 4.0 * PARTICLE_DISTANCE + EPS)) && ((y > 0.6 - 2.0 * PARTICLE_DISTANCE + EPS) && (y <= 0.6 + EPS))) && ((z > 0.0 - 4.0 * PARTICLE_DISTANCE + EPS) && (z <= 0.3 + 4.0 * PARTICLE_DISTANCE + EPS))) {
-                    ParticleType[i] = WALL;
-                    flagOfParticleGeneration = ON;
-                }
-
-                /* empty region */
-                if ((((x > 0.0 + EPS) && (x <= 1.00 + EPS)) && (y > 0.0 + EPS)) && ((z > 0.0 + EPS) && (z <= 0.3 + EPS))) {
-                    flagOfParticleGeneration = OFF;
-                }
-
-                /* fluid region */
-                if ((((x > 0.0 + EPS) && (x <= 0.25 + EPS)) && ((y > 0.0 + EPS) && (y < 0.5 + EPS))) && ((z > 0.0 + EPS) && (z <= 0.3 + EPS))) {
-                    ParticleType[i] = FLUID;
-                    flagOfParticleGeneration = ON;
-                }
-
-                if (flagOfParticleGeneration == ON) {
-                    Position[i * 3] = x;
-                    Position[i * 3 + 1] = y;
-                    Position[i * 3 + 2] = z;
-                    i++;
-                }
-            }
-        }
-    }
-    NumberOfParticles = i;
-    for (i = 0; i < NumberOfParticles * 3; i++) { Velocity[i] = 0.0; }
-}
-
-
-void calConstantParameter(void) {
-
-    Re_forNumberDensity = RADIUS_FOR_NUMBER_DENSITY;
-    Re_forGradient = RADIUS_FOR_GRADIENT;
-    Re_forLaplacian = RADIUS_FOR_LAPLACIAN;
-    Re2_forNumberDensity = Re_forNumberDensity * Re_forNumberDensity;
-    Re2_forGradient = Re_forGradient * Re_forGradient;
-    Re2_forLaplacian = Re_forLaplacian * Re_forLaplacian;
-    calNZeroAndLambda();
-    FluidDensity = FLUID_DENSITY;
-    collisionDistance = COLLISION_DISTANCE;
-    collisionDistance2 = collisionDistance * collisionDistance;
-    FileNumber = 0;
-    Time = 0.0;
-}
-
-
-void calNZeroAndLambda(void) {
-    int iX, iY, iZ;
-    int iZ_start, iZ_end;
-    double xj, yj, zj, distance, distance2;
-    double xi, yi, zi;
-
-    if (DIM == 2) {
-        iZ_start = 0;
-        iZ_end = 1;
-    } else {
-        iZ_start = -4;
-        iZ_end = 5;
-    }
-
-    N0_forNumberDensity = 0.0;
-    N0_forGradient = 0.0;
-    N0_forLaplacian = 0.0;
-    Lambda = 0.0;
-    xi = 0.0;
-    yi = 0.0;
-    zi = 0.0;
-
-    for (iX = -4; iX < 5; iX++) {
-        for (iY = -4; iY < 5; iY++) {
-            for (iZ = iZ_start; iZ < iZ_end; iZ++) {
-                if (((iX == 0) && (iY == 0)) && (iZ == 0))continue;
-                xj = PARTICLE_DISTANCE * (double) (iX);
-                yj = PARTICLE_DISTANCE * (double) (iY);
-                zj = PARTICLE_DISTANCE * (double) (iZ);
-                distance2 = (xj - xi) * (xj - xi) + (yj - yi) * (yj - yi) + (zj - zi) * (zj - zi);
-                distance = sqrt(distance2);
-                N0_forNumberDensity += weight(distance, Re_forNumberDensity);
-                N0_forGradient += weight(distance, Re_forGradient);
-                N0_forLaplacian += weight(distance, Re_forLaplacian);
-                Lambda += distance2 * weight(distance, Re_forLaplacian);
-            }
-        }
-    }
-    Lambda = Lambda / N0_forLaplacian;
-}
-
-
-void mainLoopOfSimulation(void) {
-    int iTimeStep = 0;
-
-    writeData_inVtuFormat();
-    writeData_inProfFormat();
-
-    while (1) {
-        calGravity();
-        calViscosity();
-        moveParticle();
-        collision();
-        calPressure();
-        calPressureGradient();
-        moveParticleUsingPressureGradient();
-        iTimeStep++;
-        Time += DT;
-        if ((iTimeStep % OUTPUT_INTERVAL) == 0) {
-            printf("TimeStepNumber: %4d   Time: %lf(s)   NumberOfParticless: %d\n", iTimeStep, Time, NumberOfParticles);
-            writeData_inVtuFormat();
-            writeData_inProfFormat();
-        }
-        if (Time >= FINISH_TIME) { break; }
-    }
-}
-
-
-void calGravity(void) {
-    int i;
-
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (ParticleType[i] == FLUID) {
-            Acceleration[i * 3] = G_X;
-            Acceleration[i * 3 + 1] = G_Y;
-            Acceleration[i * 3 + 2] = G_Z;
-        } else {
-            Acceleration[i * 3] = 0.0;
-            Acceleration[i * 3 + 1] = 0.0;
-            Acceleration[i * 3 + 2] = 0.0;
-        }
-    }
-}
-
-
-void calViscosity(void) {
-    int i, j;
-    double viscosityTerm_x, viscosityTerm_y, viscosityTerm_z;
-    double distance, distance2;
-    double w;
-    double xij, yij, zij;
-    double a;
-
-    a = (KINEMATIC_VISCOSITY) * (2.0 * DIM) / (N0_forLaplacian * Lambda);
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (ParticleType[i] != FLUID) continue;
-        viscosityTerm_x = 0.0;
-        viscosityTerm_y = 0.0;
-        viscosityTerm_z = 0.0;
-
-        for (j = 0; j < NumberOfParticles; j++) {
-            if ((j == i) || (ParticleType[j] == GHOST)) continue;
-            xij = Position[j * 3] - Position[i * 3];
-            yij = Position[j * 3 + 1] - Position[i * 3 + 1];
-            zij = Position[j * 3 + 2] - Position[i * 3 + 2];
-            distance2 = (xij * xij) + (yij * yij) + (zij * zij);
-            distance = sqrt(distance2);
-            if (distance < Re_forLaplacian) {
-                w = weight(distance, Re_forLaplacian);
-                viscosityTerm_x += (Velocity[j * 3] - Velocity[i * 3]) * w;
-                viscosityTerm_y += (Velocity[j * 3 + 1] - Velocity[i * 3 + 1]) * w;
-                viscosityTerm_z += (Velocity[j * 3 + 2] - Velocity[i * 3 + 2]) * w;
-            }
-        }
-        viscosityTerm_x = viscosityTerm_x * a;
-        viscosityTerm_y = viscosityTerm_y * a;
-        viscosityTerm_z = viscosityTerm_z * a;
-        Acceleration[i * 3] += viscosityTerm_x;
-        Acceleration[i * 3 + 1] += viscosityTerm_y;
-        Acceleration[i * 3 + 2] += viscosityTerm_z;
-    }
-}
-
-
-void moveParticle(void) {
-    int i;
-
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (ParticleType[i] == FLUID) {
-            Velocity[i * 3] += Acceleration[i * 3] * DT;
-            Velocity[i * 3 + 1] += Acceleration[i * 3 + 1] * DT;
-            Velocity[i * 3 + 2] += Acceleration[i * 3 + 2] * DT;
-
-            Position[i * 3] += Velocity[i * 3] * DT;
-            Position[i * 3 + 1] += Velocity[i * 3 + 1] * DT;
-            Position[i * 3 + 2] += Velocity[i * 3 + 2] * DT;
-        }
-        Acceleration[i * 3] = 0.0;
-        Acceleration[i * 3 + 1] = 0.0;
-        Acceleration[i * 3 + 2] = 0.0;
-    }
-}
-
-
-void collision(void) {
-    int i, j;
-    double xij, yij, zij;
-    double distance, distance2;
-    double forceDT; /* forceDT is the impulse of collision between particles */
-    double mi, mj;
-    double velocity_ix, velocity_iy, velocity_iz;
-    double e = COEFFICIENT_OF_RESTITUTION;
-    static double VelocityAfterCollision[3 * ARRAY_SIZE];
-
-    for (i = 0; i < 3 * NumberOfParticles; i++) {
-        VelocityAfterCollision[i] = Velocity[i];
-    }
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (ParticleType[i] == FLUID) {
-            mi = FluidDensity;
-            velocity_ix = Velocity[i * 3];
-            velocity_iy = Velocity[i * 3 + 1];
-            velocity_iz = Velocity[i * 3 + 2];
-            for (j = 0; j < NumberOfParticles; j++) {
-                if ((j == i) || (ParticleType[j] == GHOST)) continue;
-                xij = Position[j * 3] - Position[i * 3];
-                yij = Position[j * 3 + 1] - Position[i * 3 + 1];
-                zij = Position[j * 3 + 2] - Position[i * 3 + 2];
-                distance2 = (xij * xij) + (yij * yij) + (zij * zij);
-                if (distance2 < collisionDistance2) {
-                    distance = sqrt(distance2);
-                    forceDT = (velocity_ix - Velocity[j * 3]) * (xij / distance)
-                              + (velocity_iy - Velocity[j * 3 + 1]) * (yij / distance)
-                              + (velocity_iz - Velocity[j * 3 + 2]) * (zij / distance);
-                    if (forceDT > 0.0) {
-                        mj = FluidDensity;
-                        forceDT *= (1.0 + e) * mi * mj / (mi + mj);
-                        velocity_ix -= (forceDT / mi) * (xij / distance);
-                        velocity_iy -= (forceDT / mi) * (yij / distance);
-                        velocity_iz -= (forceDT / mi) * (zij / distance);
-                        /*
-                        if(j>i){ fprintf(stderr,"WARNING: Collision occured between %d and %d particles.\n",i,j); }
-                        */
-                    }
-                }
-            }
-            VelocityAfterCollision[i * 3] = velocity_ix;
-            VelocityAfterCollision[i * 3 + 1] = velocity_iy;
-            VelocityAfterCollision[i * 3 + 2] = velocity_iz;
-        }
-    }
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (ParticleType[i] == FLUID) {
-            Position[i * 3] += (VelocityAfterCollision[i * 3] - Velocity[i * 3]) * DT;
-            Position[i * 3 + 1] += (VelocityAfterCollision[i * 3 + 1] - Velocity[i * 3 + 1]) * DT;
-            Position[i * 3 + 2] += (VelocityAfterCollision[i * 3 + 2] - Velocity[i * 3 + 2]) * DT;
-            Velocity[i * 3] = VelocityAfterCollision[i * 3];
-            Velocity[i * 3 + 1] = VelocityAfterCollision[i * 3 + 1];
-            Velocity[i * 3 + 2] = VelocityAfterCollision[i * 3 + 2];
-        }
-    }
-}
-
-
-void calPressure(void) {
-    calNumberDensity();
-    setBoundaryCondition();
-    setSourceTerm();
-    setMatrix();
-    solveSimultaniousEquationsByGaussEliminationMethod();
-    removeNegativePressure();
-    setMinimumPressure();
-}
-
-
-void calNumberDensity(void) {
-    int i, j;
-    double xij, yij, zij;
-    double distance, distance2;
-    double w;
-
-    for (i = 0; i < NumberOfParticles; i++) {
-        NumberDensity[i] = 0.0;
-        if (ParticleType[i] == GHOST) continue;
-        for (j = 0; j < NumberOfParticles; j++) {
-            if ((j == i) || (ParticleType[j] == GHOST)) continue;
-            xij = Position[j * 3] - Position[i * 3];
-            yij = Position[j * 3 + 1] - Position[i * 3 + 1];
-            zij = Position[j * 3 + 2] - Position[i * 3 + 2];
-            distance2 = (xij * xij) + (yij * yij) + (zij * zij);
-            distance = sqrt(distance2);
-            w = weight(distance, Re_forNumberDensity);
-            NumberDensity[i] += w;
-        }
-    }
-}
-
-
-void setBoundaryCondition(void) {
-    int i;
-    double n0 = N0_forNumberDensity;
-    double beta = THRESHOLD_RATIO_OF_NUMBER_DENSITY;
-
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (ParticleType[i] == GHOST || ParticleType[i] == DUMMY_WALL) {
-            BoundaryCondition[i] = GHOST_OR_DUMMY;
-        } else if (NumberDensity[i] < beta * n0) {
-            BoundaryCondition[i] = SURFACE_PARTICLE;
-        } else {
-            BoundaryCondition[i] = INNER_PARTICLE;
-        }
-    }
-}
-
-
-void setSourceTerm(void) {
-    int i;
-    double n0 = N0_forNumberDensity;
-    double gamma = RELAXATION_COEFFICIENT_FOR_PRESSURE;
-
-    for (i = 0; i < NumberOfParticles; i++) {
-        SourceTerm[i] = 0.0;
-        if (ParticleType[i] == GHOST || ParticleType[i] == DUMMY_WALL) continue;
-        if (BoundaryCondition[i] == INNER_PARTICLE) {
-            SourceTerm[i] = gamma * (1.0 / (DT * DT)) * ((NumberDensity[i] - n0) / n0);
-        } else if (BoundaryCondition[i] == SURFACE_PARTICLE) {
-            SourceTerm[i] = 0.0;
-        }
-    }
-}
-
-
-void setMatrix(void) {
-    double xij, yij, zij;
-    double distance, distance2;
-    double coefficientIJ;
-    double n0 = N0_forLaplacian;
-    int i, j;
-    double a;
-    int n = NumberOfParticles;
-
-    for (i = 0; i < NumberOfParticles; i++) {
-        for (j = 0; j < NumberOfParticles; j++) {
-            CoefficientMatrix[i * n + j] = 0.0;
-        }
-    }
-
-    a = 2.0 * DIM / (n0 * Lambda);
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (BoundaryCondition[i] != INNER_PARTICLE) continue;
-        for (j = 0; j < NumberOfParticles; j++) {
-            if ((j == i) || (BoundaryCondition[j] == GHOST_OR_DUMMY)) continue;
-            xij = Position[j * 3] - Position[i * 3];
-            yij = Position[j * 3 + 1] - Position[i * 3 + 1];
-            zij = Position[j * 3 + 2] - Position[i * 3 + 2];
-            distance2 = (xij * xij) + (yij * yij) + (zij * zij);
-            distance = sqrt(distance2);
-            if (distance >= Re_forLaplacian)continue;
-            coefficientIJ = a * weight(distance, Re_forLaplacian) / FluidDensity;
-            CoefficientMatrix[i * n + j] = (-1.0) * coefficientIJ;
-            CoefficientMatrix[i * n + i] += coefficientIJ;
-        }
-        CoefficientMatrix[i * n + i] += (COMPRESSIBILITY) / (DT * DT);
-    }
-    exceptionalProcessingForBoundaryCondition();
-}
-
-
-void exceptionalProcessingForBoundaryCondition(void) {
-    /* If tere is no Dirichlet boundary condition on the fluid,
-       increase the diagonal terms of the matrix for an exception. This allows us to solve the matrix without Dirichlet boundary conditions. */
-    checkBoundaryCondition();
-    increaseDiagonalTerm();
-}
-
-
-void checkBoundaryCondition(void) {
-    int i, j, count;
-    double xij, yij, zij, distance2;
-
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (BoundaryCondition[i] == GHOST_OR_DUMMY) {
-            FlagForCheckingBoundaryCondition[i] = GHOST_OR_DUMMY;
-        } else if (BoundaryCondition[i] == SURFACE_PARTICLE) {
-            FlagForCheckingBoundaryCondition[i] = DIRICHLET_BOUNDARY_IS_CONNECTED;
-        } else {
-            FlagForCheckingBoundaryCondition[i] = DIRICHLET_BOUNDARY_IS_NOT_CONNECTED;
-        }
-    }
-
-    do {
-        count = 0;
-        for (i = 0; i < NumberOfParticles; i++) {
-            if (FlagForCheckingBoundaryCondition[i] == DIRICHLET_BOUNDARY_IS_CONNECTED) {
-                for (j = 0; j < NumberOfParticles; j++) {
-                    if (j == i) continue;
-                    if ((ParticleType[j] == GHOST) || (ParticleType[j] == DUMMY_WALL)) continue;
-                    if (FlagForCheckingBoundaryCondition[j] == DIRICHLET_BOUNDARY_IS_NOT_CONNECTED) {
-                        xij = Position[j * 3] - Position[i * 3];
-                        yij = Position[j * 3 + 1] - Position[i * 3 + 1];
-                        zij = Position[j * 3 + 2] - Position[i * 3 + 2];
-                        distance2 = (xij * xij) + (yij * yij) + (zij * zij);
-                        if (distance2 >= Re2_forLaplacian)continue;
-                        FlagForCheckingBoundaryCondition[j] = DIRICHLET_BOUNDARY_IS_CONNECTED;
-                    }
-                }
-                FlagForCheckingBoundaryCondition[i] = DIRICHLET_BOUNDARY_IS_CHECKED;
-                count++;
-            }
-        }
-    } while (count != 0); /* This procedure is repeated until the all fluid or wall particles (which have Dirhchlet boundary condition in the particle group) are in the state of "DIRICHLET_BOUNDARY_IS_CHECKED".*/
-
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (FlagForCheckingBoundaryCondition[i] == DIRICHLET_BOUNDARY_IS_NOT_CONNECTED) {
-            fprintf(stderr, "WARNING: There is no dirichlet boundary condition for %d-th particle.\n", i);
-        }
-    }
-}
-
-
-void increaseDiagonalTerm(void) {
-    int i;
-    int n = NumberOfParticles;
-
-    for (i = 0; i < n; i++) {
-        if (FlagForCheckingBoundaryCondition[i] == DIRICHLET_BOUNDARY_IS_NOT_CONNECTED) {
-            CoefficientMatrix[i * n + i] = 2.0 * CoefficientMatrix[i * n + i];
-        }
-    }
-}
-
-
-void solveSimultaniousEquationsByGaussEliminationMethod(void) {
-    int i, j, k;
-    double c;
-    double sumOfTerms;
-    int n = NumberOfParticles;
-
-    for (i = 0; i < n; i++) {
-        Pressure[i] = 0.0;
-    }
-    for (i = 0; i < n - 1; i++) {
-        if (BoundaryCondition[i] != INNER_PARTICLE) continue;
-        for (j = i + 1; j < n; j++) {
-            if (BoundaryCondition[j] == GHOST_OR_DUMMY) continue;
-            c = CoefficientMatrix[j * n + i] / CoefficientMatrix[i * n + i];
-            for (k = i + 1; k < n; k++) {
-                CoefficientMatrix[j * n + k] -= c * CoefficientMatrix[i * n + k];
-            }
-            SourceTerm[j] -= c * SourceTerm[i];
-        }
-    }
-    for (i = n - 1; i >= 0; i--) {
-        if (BoundaryCondition[i] != INNER_PARTICLE) continue;
-        sumOfTerms = 0.0;
-        for (j = i + 1; j < n; j++) {
-            if (BoundaryCondition[j] == GHOST_OR_DUMMY) continue;
-            sumOfTerms += CoefficientMatrix[i * n + j] * Pressure[j];
-        }
-        Pressure[i] = (SourceTerm[i] - sumOfTerms) / CoefficientMatrix[i * n + i];
-    }
-}
-
-
-void removeNegativePressure(void) {
-    int i;
-
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (Pressure[i] < 0.0)Pressure[i] = 0.0;
-    }
-}
-
-
-void setMinimumPressure(void) {
-    double xij, yij, zij, distance2;
-    int i, j;
-
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (ParticleType[i] == GHOST || ParticleType[i] == DUMMY_WALL)continue;
-        MinimumPressure[i] = Pressure[i];
-        for (j = 0; j < NumberOfParticles; j++) {
-            if ((j == i) || (ParticleType[j] == GHOST)) continue;
-            if (ParticleType[j] == DUMMY_WALL) continue;
-            xij = Position[j * 3] - Position[i * 3];
-            yij = Position[j * 3 + 1] - Position[i * 3 + 1];
-            zij = Position[j * 3 + 2] - Position[i * 3 + 2];
-            distance2 = (xij * xij) + (yij * yij) + (zij * zij);
-            if (distance2 >= Re2_forGradient)continue;
-            if (MinimumPressure[i] > Pressure[j]) {
-                MinimumPressure[i] = Pressure[j];
-            }
-        }
-    }
-}
-
-
-void calPressureGradient(void) {
-    int i, j;
-    double gradient_x, gradient_y, gradient_z;
-    double xij, yij, zij;
-    double distance, distance2;
-    double w, pij;
-    double a;
-
-    a = DIM / N0_forGradient;
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (ParticleType[i] != FLUID) continue;
-        gradient_x = 0.0;
-        gradient_y = 0.0;
-        gradient_z = 0.0;
-        for (j = 0; j < NumberOfParticles; j++) {
-            if (j == i) continue;
-            if (ParticleType[j] == GHOST) continue;
-            if (ParticleType[j] == DUMMY_WALL) continue;
-            xij = Position[j * 3] - Position[i * 3];
-            yij = Position[j * 3 + 1] - Position[i * 3 + 1];
-            zij = Position[j * 3 + 2] - Position[i * 3 + 2];
-            distance2 = (xij * xij) + (yij * yij) + (zij * zij);
-            distance = sqrt(distance2);
-            if (distance < Re_forGradient) {
-                w = weight(distance, Re_forGradient);
-                pij = (Pressure[j] - MinimumPressure[i]) / distance2;
-                gradient_x += xij * pij * w;
-                gradient_y += yij * pij * w;
-                gradient_z += zij * pij * w;
-            }
-        }
-        gradient_x *= a;
-        gradient_y *= a;
-        gradient_z *= a;
-        Acceleration[i * 3] = (-1.0) * gradient_x / FluidDensity;
-        Acceleration[i * 3 + 1] = (-1.0) * gradient_y / FluidDensity;
-        Acceleration[i * 3 + 2] = (-1.0) * gradient_z / FluidDensity;
-    }
-}
-
-
-void moveParticleUsingPressureGradient(void) {
-    int i;
-
-    for (i = 0; i < NumberOfParticles; i++) {
-        if (ParticleType[i] == FLUID) {
-            Velocity[i * 3] += Acceleration[i * 3] * DT;
-            Velocity[i * 3 + 1] += Acceleration[i * 3 + 1] * DT;
-            Velocity[i * 3 + 2] += Acceleration[i * 3 + 2] * DT;
-
-            Position[i * 3] += Acceleration[i * 3] * DT * DT;
-            Position[i * 3 + 1] += Acceleration[i * 3 + 1] * DT * DT;
-            Position[i * 3 + 2] += Acceleration[i * 3 + 2] * DT * DT;
-        }
-        Acceleration[i * 3] = 0.0;
-        Acceleration[i * 3 + 1] = 0.0;
-        Acceleration[i * 3 + 2] = 0.0;
-    }
-}
-
-
-void writeData_inProfFormat(void) {
-    int i;
-    FILE *fp;
-    char fileName[256];
-
-    sprintf(fileName, "output_%04d.prof", FileNumber);
-    fp = fopen(fileName, "w");
-    fprintf(fp, "%lf\n", Time);
-    fprintf(fp, "%d\n", NumberOfParticles);
-    for (i = 0; i < NumberOfParticles; i++) {
-        fprintf(fp, "%d %lf %lf %lf %lf %lf %lf %lf %lf\n", ParticleType[i], Position[i * 3], Position[i * 3 + 1], Position[i * 3 + 2], Velocity[i * 3], Velocity[i * 3 + 1], Velocity[i * 3 + 2], Pressure[i], NumberDensity[i]);
-    }
-    fclose(fp);
-    FileNumber++;
-}
-
-
-void writeData_inVtuFormat(void) {
-    int i;
-    double absoluteValueOfVelocity;
-    FILE *fp;
-    char fileName[1024];
-
-    sprintf(fileName, "particle_%04d.vtu", FileNumber);
-    fp = fopen(fileName, "w");
-    fprintf(fp, "<?xml version='1.0' encoding='UTF-8'?>\n");
-    fprintf(fp, "<VTKFile xmlns='VTK' byte_order='LittleEndian' version='0.1' type='UnstructuredGrid'>\n");
-    fprintf(fp, "<UnstructuredGrid>\n");
-    fprintf(fp, "<Piece NumberOfCells='%d' NumberOfPoints='%d'>\n", NumberOfParticles, NumberOfParticles);
-    fprintf(fp, "<Points>\n");
-    fprintf(fp, "<DataArray NumberOfComponents='3' type='Float32' Name='Position' format='ascii'>\n");
-    for (i = 0; i < NumberOfParticles; i++) {
-        fprintf(fp, "%lf %lf %lf\n", Position[i * 3], Position[i * 3 + 1], Position[i * 3 + 2]);
-    }
-    fprintf(fp, "</DataArray>\n");
-    fprintf(fp, "</Points>\n");
-    fprintf(fp, "<PointData>\n");
-    fprintf(fp, "<DataArray NumberOfComponents='1' type='Int32' Name='ParticleType' format='ascii'>\n");
-    for (i = 0; i < NumberOfParticles; i++) {
-        fprintf(fp, "%d\n", ParticleType[i]);
-    }
-    fprintf(fp, "</DataArray>\n");
-    fprintf(fp, "<DataArray NumberOfComponents='1' type='Float32' Name='Velocity' format='ascii'>\n");
-    for (i = 0; i < NumberOfParticles; i++) {
-        absoluteValueOfVelocity =
-                sqrt(Velocity[i * 3] * Velocity[i * 3] + Velocity[i * 3 + 1] * Velocity[i * 3 + 1] + Velocity[i * 3 + 2] * Velocity[i * 3 + 2]);
-        fprintf(fp, "%f\n", (float) absoluteValueOfVelocity);
-    }
-    fprintf(fp, "</DataArray>\n");
-    fprintf(fp, "<DataArray NumberOfComponents='1' type='Float32' Name='pressure' format='ascii'>\n");
-    for (i = 0; i < NumberOfParticles; i++) {
-        fprintf(fp, "%f\n", (float) Pressure[i]);
-    }
-    fprintf(fp, "</DataArray>\n");
-    fprintf(fp, "</PointData>\n");
-    fprintf(fp, "<Cells>\n");
-    fprintf(fp, "<DataArray type='Int32' Name='connectivity' format='ascii'>\n");
-    for (i = 0; i < NumberOfParticles; i++) {
-        fprintf(fp, "%d\n", i);
-    }
-    fprintf(fp, "</DataArray>\n");
-    fprintf(fp, "<DataArray type='Int32' Name='offsets' format='ascii'>\n");
-    for (i = 0; i < NumberOfParticles; i++) {
-        fprintf(fp, "%d\n", i + 1);
-    }
-    fprintf(fp, "</DataArray>\n");
-    fprintf(fp, "<DataArray type='UInt8' Name='types' format='ascii'>\n");
-    for (i = 0; i < NumberOfParticles; i++) {
-        fprintf(fp, "1\n");
-    }
-    fprintf(fp, "</DataArray>\n");
-    fprintf(fp, "</Cells>\n");
-    fprintf(fp, "</Piece>\n");
-    fprintf(fp, "</UnstructuredGrid>\n");
-    fprintf(fp, "</VTKFile>\n");
-    fclose(fp);
-} 

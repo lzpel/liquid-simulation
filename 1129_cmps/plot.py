@@ -20,13 +20,13 @@ for i in glob.glob("*.prof"):
         z = data[3]
 
         if (y is not None) and np.ptp(y)>0 and (z is not None) and np.ptp(z)>0 :
-            z,y=y,z
+            # z,y=y,z
             ax = fig.add_subplot(111, projection='3d')
             ax.set_xlabel("x")
-            ax.set_ylabel("z")
-            ax.set_zlabel("y")
+            ax.set_ylabel("y")
+            ax.set_zlabel("z")
             ax.set_box_aspect((np.ptp(x), np.ptp(y), np.ptp(z)))
-            ax.view_init(elev=0, azim=-90)
+            # ax.view_init(elev=0, azim=-90)
         else:
             ax = fig.add_subplot(111)
             ax.set_xlabel("x")
