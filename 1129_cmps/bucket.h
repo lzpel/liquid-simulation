@@ -13,9 +13,11 @@ struct Bucket {
     double length;
     std::vector<int> first;
     std::vector<int> nxt;
-    signed near[1024];
+    std::vector<int> near;
 
     Bucket() {
+        //(0.046*3)^3/(0.02^3)=328
+        near=std::vector<int>(1024);
         rangeInit();
     }
 
@@ -58,21 +60,17 @@ struct Bucket {
 
     inline const int* iterator(const double *pos) {
         BUCKETINDEXXYZ(pos);
-        int i=0;
+        near.clear();
         for(int z=0;z<3;z++){
             for(int y=0;y<3;y++){
                 for(int x=0;x<3;x++){
                     for(int r=first[BUCKETINDEX(ix-1+x,iy-1+y,iz-1+z)];r!=-1;r=nxt[r]){
-                        near[i]=r;
-                        i++;
+                        near.emplace_back(r);
                     }
                 }
             }
         }
-        near[i]=-1;
-        if(i>=sizeof(near)/sizeof(signed)) {
-            printf("異常：近傍粒子数が%d個以上\n", int(sizeof(near)/sizeof(signed)));
-        }
-        return near;
+        near.emplace_back(-1);
+        return &near[0];
     }
 };
