@@ -25,7 +25,7 @@
 #define SND 22.0            //音速
 #define OPT_FQC 100        //出力間隔を決める反復数
 #define KNM_VSC 0.000001    //動粘性係数
-const int DIM = 3;                //次元数
+const int DIM = 2;                //次元数
 #define CRT_NUM 0.1        //クーラン条件数
 #define COL_RAT 0.2        //接近した粒子の反発率
 #define DST_LMT_RAT 0.9    //これ以上の粒子間の接近を許さない距離の係数
@@ -95,7 +95,7 @@ void WrtDat(void) {
     fprintf(fp, "%d\n", nP);
     for (int i = 0; i < nP; i++) {
         Particle &p = ps[i];
-        fprintf(fp, "%d %lf %lf %lf %lf %lf %lf %lf %lf\n", p.Typ, p.Pos[0], p.Pos[1], p.Pos[2], p.Vel[0], p.Vel[1], p.Vel[2], p.Prs,
+        if(p.Typ==int(Type::FLUID))fprintf(fp, "%d %lf %lf %lf %lf %lf %lf %lf %lf\n", p.Typ, p.Pos[0], p.Pos[1], p.Pos[2], p.Vel[0], p.Vel[1], p.Vel[2], p.Prs,
                 p.pav / OPT_FQC);
         //書き込みのタイミングで時間平均圧力をリセットしている
         p.pav = 0.0;

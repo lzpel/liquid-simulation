@@ -14,7 +14,7 @@ for i in glob.glob("*.prof"):
         fig = plt.figure(figsize = (8, 8))
 
         # データ
-        data = np.loadtxt(f, skiprows=2).T
+        data = np.loadtxt(f, skiprows=1).T
         x = data[1]
         y = data[2]
         z = data[3]
@@ -45,7 +45,8 @@ for i in glob.glob("*.prof"):
         # ax.set_yticks([-5.0, -2.5, 0.0, 2.5, 5.0])
 
         # 曲線を描画
-        ax.scatter(*([x, y] if z is None else [x, y, z]), s = 3**2, c = data[0], cmap = ListedColormap(['b', 'b', '#00ff0011']))
+        sc = ax.scatter(*([x, y] if z is None else [x, y, z]), s = 3**2, c = (data[0] if len(data)<9 else data[8]))
+        fig.colorbar(sc, aspect=40, pad=0.08, orientation='vertical')
 
         if 0:
             plt.show()
