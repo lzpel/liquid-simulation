@@ -5,7 +5,7 @@
 #include "defs.h"
 #include "bucket.h"
 
-#define IN_FILE "./initCollapse.prof"
+#define IN_FILE "./collapse.init"
 #define PCL_DST 0.02                    //平均粒子間距離
 #define MIN_X  (0.0 - PCL_DST*3)    //解析領域のx方向の最小値
 #define MIN_Y  (0.0 - PCL_DST*3)    //解析領域のy方向の最小値
@@ -25,7 +25,7 @@
 #define SND 22.0            //音速
 #define OPT_FQC 100        //出力間隔を決める反復数
 #define KNM_VSC 0.000001    //動粘性係数
-const int DIM = 2;                //次元数
+const int DIM = 3;                //次元数
 #define CRT_NUM 0.1        //クーラン条件数
 #define COL_RAT 0.2        //接近した粒子の反発率
 #define DST_LMT_RAT 0.9    //これ以上の粒子間の接近を許さない距離の係数
@@ -38,7 +38,6 @@ FILE *fp;
 char filename[256];
 int iLP, iF;
 double TIM;
-int nP;
 double r, r2;
 Bucket bucket;
 double n0, lmd, A1, A2, rlim, rlim2, COL;
@@ -72,19 +71,14 @@ void RdDat(void) {
         int idx;
         Particle p = {};
         //粒子番号　粒子種別(GST -1 FLD 0 WLL) 座標三次元　速度三次元　（加速度は0）
-        if (fscanf(fp, " %d %lf %lf %lf", &p.Typ, &p.Pos[0], &p.Pos[1], &p.Pos[2]) == EOF) {
-            nP = ps.size();
-            break;
-        }
-        if ((DIM == 2) && (p.Pos[1] != 0)) {
-            continue;
-        }
+        if (fscanf(fp, " %d %lf %lf %lf", &p.Typ, &p.Pos[0], &p.Pos[1], &p.Pos[2]) == EOF) break;
+        if ((DIM == 2) && (p.Pos[1] != 0)) continue;
         ps.push_back(p);
     }
-    printf("nP: %d\n", nP);
+    printf("ps.size(): %d\n", ps.size());
     fclose(fp);
-    for (int i = 0; i < nP; i++) { ChkPcl(ps[i]); }
-    for (int i = 0; i < nP; i++) { ps[i].Acc[0] = ps[i].Acc[1] = ps[i].Acc[2] = 0.0; }
+    for (int i = 0; i < ps.size(); i++) { ChkPcl(ps[i]); }
+    for (int i = 0; i < ps.size(); i++) { ps[i].Acc[0] = ps[i].Acc[1] = ps[i].Acc[2] = 0.0; }
 }
 
 //関数03 状態書き込み
@@ -92,11 +86,10 @@ void WrtDat(void) {
     char outout_filename[256];
     sprintf(outout_filename, "output%05d.prof", iF);
     fp = fopen(outout_filename, "w");
-    fprintf(fp, "%d\n", nP);
-    for (int i = 0; i < nP; i++) {
+    fprintf(fp, "%d\n", ps.size());
+    for (int i = 0; i < ps.size(); i++) {
         Particle &p = ps[i];
-        if(p.Typ==int(Type::FLUID))fprintf(fp, "%d %lf %lf %lf %lf %lf %lf %lf %lf\n", p.Typ, p.Pos[0], p.Pos[1], p.Pos[2], p.Vel[0], p.Vel[1], p.Vel[2], p.Prs,
-                p.pav / OPT_FQC);
+        fprintf(fp, "%d %lf %lf %lf %lf %lf %lf %lf %lf\n", p.Typ, p.Pos[0], p.Pos[1], p.Pos[2], p.Vel[0], p.Vel[1], p.Vel[2], p.Prs, p.pav / OPT_FQC);
         //書き込みのタイミングで時間平均圧力をリセットしている
         p.pav = 0.0;
     }
@@ -160,7 +153,7 @@ void SetPara(void) {
 //関数06 バケットのxyzを設定する
 void MkBkt(void) {
     bucket.clear();
-    for (int i = 0; i < nP; i++) {
+    for (int i = 0; i < ps.size(); i++) {
         Particle &p = ps[i];
         //計算しない
         if (p.Typ == GST)continue;
@@ -170,7 +163,7 @@ void MkBkt(void) {
 
 //関数07 粘性項と重力を計算する関数
 void VscTrm() {
-    for (int i = 0; i < nP; i++) {
+    for (int i = 0; i < ps.size(); i++) {
         Particle &pi = ps[i];
         if (pi.Typ == FLD) {
             double Acc_x = 0.0;
@@ -211,7 +204,7 @@ void VscTrm() {
 
 //関数08 加速度の修正項から位置と速度を求める関数
 void UpPcl1() {
-    for (int i = 0; i < nP; i++) {
+    for (int i = 0; i < ps.size(); i++) {
         Particle &pi = ps[i];
         if (pi.Typ == FLD) {
             pi.Vel[0] += pi.Acc[0] * DT;
@@ -229,7 +222,7 @@ void UpPcl1() {
 
 //関数09 粒子の剛体衝突判定
 void ChkCol() {
-    for (int i = 0; i < nP; i++) {
+    for (int i = 0; i < ps.size(); i++) {
         Particle &pi = ps[i];
         if (pi.Typ == FLD) {
             double mi = Dns[pi.Typ];
@@ -273,7 +266,7 @@ void ChkCol() {
             pi.Acc[2] = vec_iz2;
         }
     }
-    for (int i = 0; i < nP; i++) {
+    for (int i = 0; i < ps.size(); i++) {
         Particle &pi = ps[i];
         //TODO: 次元整合？
         pi.Vel[0] = pi.Acc[0];
@@ -284,7 +277,7 @@ void ChkCol() {
 
 //関数10 仮の圧力を求める
 void MkPrs() {
-    for (int i = 0; i < nP; i++) {
+    for (int i = 0; i < ps.size(); i++) {
         Particle &pi = ps[i];
         if (pi.Typ != GST) {
             double pos_ix = pi.Pos[0];
@@ -317,7 +310,7 @@ void MkPrs() {
 //関数11 圧力勾配項を求める関数
 void PrsGrdTrm() {
     const double A3 = -DIM / n0;//圧力勾配項の計算に用いる係数
-    for (int i = 0; i < nP; i++) {
+    for (int i = 0; i < ps.size(); i++) {
         Particle &pi = ps[i];
         if (pi.Typ == FLD) {
             pi.PrsNearMin=DBL_MAX;
@@ -327,7 +320,7 @@ void PrsGrdTrm() {
             }
         }
     }
-    for (int i = 0; i < nP; i++) {
+    for (int i = 0; i < ps.size(); i++) {
         Particle &pi = ps[i];
         if (pi.Typ == FLD) {
             double Acc_x = 0.0;
@@ -363,7 +356,7 @@ void PrsGrdTrm() {
 
 //関数12 加速度に沿った移動二回目
 void UpPcl2(void) {
-    for (int i = 0; i < nP; i++) {
+    for (int i = 0; i < ps.size(); i++) {
         Particle &pi = ps[i];
         if (pi.Typ == FLD) {
             pi.Vel[0] += pi.Acc[0] * DT;
@@ -383,7 +376,7 @@ void ClcEMPS(void) {
         if (iLP % 100 == 0) {
             //標準出力
             int p_num = 0;
-            for (int i = 0; i < nP; i++) { if (ps[i].Typ != GST)p_num++; }
+            for (int i = 0; i < ps.size(); i++) { if (ps[i].Typ != GST)p_num++; }
             printf("%5d th TIM: %lf / p_num: %d\n", iLP, TIM, p_num);
             fflush(stdout);
         }
@@ -400,7 +393,7 @@ void ClcEMPS(void) {
         PrsGrdTrm();//圧力勾配加速度
         UpPcl2();//移動
         // MkPrs();//仮圧力
-        for (int i = 0; i < nP; i++) { ps[i].pav += ps[i].Prs; }
+        for (int i = 0; i < ps.size(); i++) { ps[i].pav += ps[i].Prs; }
         iLP++;
         TIM += DT;
     }
@@ -415,6 +408,7 @@ double get_dtime(void) {
 }
 
 int main(int argc, char **argv) {
+    removeProf();
     printf("start emps.\n");
     RdDat();
     AlcBkt();

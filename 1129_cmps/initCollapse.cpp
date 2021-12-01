@@ -3,7 +3,7 @@
 #include <math.h>
 #include "defs.h"
 
-#define OUTPUT_FILE "initCollapse.prof"
+#define OUTPUT_FILE "collapse.init"
 
 #define MIN_X  0.0
 #define MIN_Y  0.0

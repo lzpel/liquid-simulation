@@ -4,6 +4,7 @@ project(main)
 set(MIN_COMPILE "-O2 -Os -DNDEBUG -s")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${MIN_COMPILE}")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${MIN_COMPILE}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake-build")
 
 add_executable(1126_standard_mps_mk_particle 1126_standard_mps/mk_particle.cpp)
 add_executable(1126_standard_mps_main 1126_standard_mps/main.cpp)
