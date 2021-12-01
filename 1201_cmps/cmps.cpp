@@ -21,7 +21,7 @@
 #define DNS_FLD 1000        //流体粒子の密度
 #define DNS_WLL 1000        //壁粒子の密度
 #define DT 0.0005            //時間刻み幅
-#define FIN_TIM 1.0        //時間の上限
+#define FIN_TIM 1        //時間の上限
 #define SND 22.0            //音速
 #define OPT_FQC 100        //出力間隔を決める反復数
 #define KNM_VSC 0.000001    //動粘性係数
@@ -277,32 +277,79 @@ void ChkCol() {
 
 //関数10 仮の圧力を求める
 void MkPrs() {
-    for (int i = 0; i < ps.size(); i++) {
-        Particle &pi = ps[i];
-        if (pi.Typ != GST) {
-            double pos_ix = pi.Pos[0];
-            double pos_iy = pi.Pos[1];
-            double pos_iz = pi.Pos[2];
-            double ni = 0.0;
-            for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
-                Particle &pj = ps[*j];
-                //相対座標v=xj-xi
-                double v0 = pj.Pos[0] - pos_ix;
-                double v1 = pj.Pos[1] - pos_iy;
-                double v2 = pj.Pos[2] - pos_iz;
-                double dist2 = distance2(v0, v1, v2);
-                if (dist2 < r2) {
-                    if (*j != i && pj.Typ != GST) {
-                        double dist = sqrt(dist2);
-                        double w = WEI(dist, r);
-                        ni += w;
+    if(false){
+        //ヤコビ法、ガウスザイデル法、越塚p54
+        //http://www.yamamo10.jp/yamamoto/lecture/2006/5E/Linear_eauations/concrete_relax_html/node2.html
+        for(int t=1;t<=100;t++){
+            for (int i = 0; i < ps.size(); i++) {
+                Particle &pi = ps[i];
+                if (pi.Typ == GST) continue;
+                double sum=0, ni_wsum=0;
+                const double coeff=(2*DIM)/(lmd*n0*Dns[pi.Typ]);
+                const double pos_ix = pi.Pos[0];
+                const double pos_iy = pi.Pos[1];
+                const double pos_iz = pi.Pos[2];
+                for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+                    const Particle &pj = ps[*j];
+                    const double dist2 = distance2(pj.Pos[0] - pos_ix, pj.Pos[1] - pos_iy,  pj.Pos[2] - pos_iz);
+                    if (dist2 > r2 || pj.Typ == GST) continue;
+                    if (*j != i){
+                        const double dist = sqrt(dist2);
+                        const double w = WEI(dist, r);
+                        const double aij=-coeff*w;
+                        sum += aij*pj.Prs;
+                        ni_wsum += w;
+                    }
+                }
+                const double aii=coeff*ni_wsum;
+                const double bi=(ni_wsum-n0)/(n0)/(DT*DT);
+                sum += aii*pi.Prs;
+                if(ni_wsum < 0.97*n0){
+                    pi.Prs=0;
+                }else{
+                    pi.Prs=(bi-sum)/aii;
+                }
+                if(pi.Typ == int(Type::WALL)){
+                    //手抜きの壁面境界条件
+                    pi.Prs =9.8*Dns[pi.Typ]*(1-pi.Pos[2]);
+                    pi.Prs=pi.Prs;
+                }
+                //デバッグ
+                if(0){
+                    if(t==100&&pi.Typ == int(Type::FLUID)){
+                        printf("%lf, %lf\n", pi.Pos[2], pi.Prs);
                     }
                 }
             }
-            double mi = Dns[pi.Typ];
-            //技巧的な式、0か仮圧力が求まる、0は表面粒子、粒子毎にprs[i]に圧力を入れる
-            double pressure = (ni > n0) * (ni - n0) * A2 * mi;
-            pi.Prs = pressure;
+        }
+    }else{
+        for (int i = 0; i < ps.size(); i++) {
+            Particle &pi = ps[i];
+            if (pi.Typ != GST) {
+                double pos_ix = pi.Pos[0];
+                double pos_iy = pi.Pos[1];
+                double pos_iz = pi.Pos[2];
+                double ni = 0.0;
+                for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+                    Particle &pj = ps[*j];
+                    //相対座標v=xj-xi
+                    double v0 = pj.Pos[0] - pos_ix;
+                    double v1 = pj.Pos[1] - pos_iy;
+                    double v2 = pj.Pos[2] - pos_iz;
+                    double dist2 = distance2(v0, v1, v2);
+                    if (dist2 < r2) {
+                        if (*j != i && pj.Typ != GST) {
+                            double dist = sqrt(dist2);
+                            double w = WEI(dist, r);
+                            ni += w;
+                        }
+                    }
+                }
+                double mi = Dns[pi.Typ];
+                //技巧的な式、0か仮圧力が求まる、0は表面粒子、粒子毎にprs[i]に圧力を入れる
+                double pressure = (ni > n0) * (ni - n0) * A2 * mi;
+                pi.Prs = pressure;
+            }
         }
     }
 }
