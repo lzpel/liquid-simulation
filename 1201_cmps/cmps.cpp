@@ -17,7 +17,7 @@
 #define DT 0.0005            //時間刻み幅
 #define FIN_TIM 1        //時間の上限
 #define SND 22.0            //音速
-#define OPT_FQC 100        //出力間隔を決める反復数
+#define OPT_FQC 10        //出力間隔を決める反復数
 #define KNM_VSC 0.000001    //動粘性係数
 const int DIM = 2;                //次元数
 #define CRT_NUM 0.1        //クーラン条件数
@@ -295,7 +295,7 @@ void MkPrs() {
                         ni_wsum += w;
                     }
                 }
-                if(ni_wsum < 0.97*n0){
+                if(ni_wsum < 0.9999*n0){
                     //表層、表層から2層目の粒子はギリギリ表層と判定されなかった。
                     //biは連続なので係数の誤りか収束の誤り
                     pi.tmp1=ni_wsum;
@@ -309,7 +309,6 @@ void MkPrs() {
                 }
             }
         }
-        WrtDat(100);
     }else{
         for (int i = 0; i < ps.size(); i++) {
             Particle &pi = ps[i];
@@ -422,7 +421,7 @@ void ClcEMPS(void) {
         MkBkt();//バケット設定
         VscTrm();//粘性項重力項
         UpPcl1();//移動
-        ChkCol();//剛体判定check collision
+        //ChkCol();//剛体判定check collision
         MkPrs();//仮圧力
         PrsGrdTrm();//圧力勾配加速度
         UpPcl2();//移動
