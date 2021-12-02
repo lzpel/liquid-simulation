@@ -45,7 +45,7 @@ for i in glob.glob("*.prof"):
         # ax.set_yticks([-5.0, -2.5, 0.0, 2.5, 5.0])
 
         # 曲線を描画
-        sc = ax.scatter(*([x, y] if z is None else [x, y, z]), s = 3**2, c = (data[0] if len(data)<9 else data[8]))
+        sc = ax.scatter(*([x, y] if z is None else [x, y, z]), s = 3**2, c = (data[0] if len(data)<9 else data[7]))
         fig.colorbar(sc, aspect=40, pad=0.08, orientation='vertical')
 
         if 0:

@@ -34,6 +34,10 @@ struct Bucket {
         max[2] = fmax(max[2], pos[2]);
     }
 
+    bool rangeInside(const double* pos){
+        return min[0]<=pos[0]&&min[1]<=pos[1]&&min[2]<=pos[2]&&max[0]>=pos[0]&&max[1]>=pos[1]&&max[2]>=pos[2];
+    }
+
     void rangeUpdateFinish(const int size, const double len) {
         length = len;
         sizeX = int((max[0] - min[0]) / length) + 1 + 2;

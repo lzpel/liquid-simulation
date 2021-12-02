@@ -7,12 +7,6 @@
 
 #define IN_FILE "./collapse.init"
 #define PCL_DST 0.02                    //平均粒子間距離
-#define MIN_X  (0.0 - PCL_DST*3)    //解析領域のx方向の最小値
-#define MIN_Y  (0.0 - PCL_DST*3)    //解析領域のy方向の最小値
-#define MIN_Z  (0.0 - PCL_DST*3)    //解析領域のz方向の最小値
-#define MAX_X  (1.0 + PCL_DST*3)    //解析領域のx方向の最大値
-#define MAX_Y  (0.2 + PCL_DST*3)    //解析領域のy方向の最大値
-#define MAX_Z  (0.6 + PCL_DST*30)    //解析領域のz方向の最大値
 
 #define GST int(Type::GHOST)            //計算対象外粒子の種類番号
 #define FLD int(Type::FLUID)                //流体粒子の種類番号
@@ -25,7 +19,7 @@
 #define SND 22.0            //音速
 #define OPT_FQC 100        //出力間隔を決める反復数
 #define KNM_VSC 0.000001    //動粘性係数
-const int DIM = 3;                //次元数
+const int DIM = 2;                //次元数
 #define CRT_NUM 0.1        //クーラン条件数
 #define COL_RAT 0.2        //接近した粒子の反発率
 #define DST_LMT_RAT 0.9    //これ以上の粒子間の接近を許さない距離の係数
@@ -45,17 +39,16 @@ double Dns[NUM_TYP], invDns[NUM_TYP];
 
 struct Particle {
     double Acc[3], Pos[3], Vel[3];
-    double Prs, PrsNearMin, pav;
+    double Prs, PrsNearMin;
     int Typ;
+    double tmp0, tmp1,tmp2;
 };
 
 std::vector<Particle> ps;
 
 //関数01 計算領域を飛び出たら幽霊粒子に設定し計算から排除
 void ChkPcl(Particle &p) {
-    if (p.Pos[0] > MAX_X || p.Pos[0] < MIN_X ||
-        p.Pos[1] > MAX_Y || p.Pos[1] < MIN_Y ||
-        p.Pos[2] > MAX_Z || p.Pos[2] < MIN_Z) {
+    if (!bucket.rangeInside(p.Pos)) {
         p.Typ = GST;
         p.Prs = p.Vel[0] = p.Vel[1] = p.Vel[2] = 0.0;
     }
@@ -77,24 +70,24 @@ void RdDat(void) {
     }
     printf("ps.size(): %d\n", ps.size());
     fclose(fp);
-    for (int i = 0; i < ps.size(); i++) { ChkPcl(ps[i]); }
     for (int i = 0; i < ps.size(); i++) { ps[i].Acc[0] = ps[i].Acc[1] = ps[i].Acc[2] = 0.0; }
 }
 
 //関数03 状態書き込み
-void WrtDat(void) {
+void WrtDat(int limit=-1) {
     char outout_filename[256];
     sprintf(outout_filename, "output%05d.prof", iF);
     fp = fopen(outout_filename, "w");
     fprintf(fp, "%d\n", ps.size());
     for (int i = 0; i < ps.size(); i++) {
         Particle &p = ps[i];
-        fprintf(fp, "%d %lf %lf %lf %lf %lf %lf %lf %lf\n", p.Typ, p.Pos[0], p.Pos[1], p.Pos[2], p.Vel[0], p.Vel[1], p.Vel[2], p.Prs, p.pav / OPT_FQC);
+        fprintf(fp, "%d %lf %lf %lf %lf %lf %lf %lf %lf %lf\n", p.Typ, p.Pos[0], p.Pos[1], p.Pos[2], p.Vel[0], p.Vel[1], p.Vel[2], p.Prs, p.tmp0, p.tmp1);
         //書き込みのタイミングで時間平均圧力をリセットしている
-        p.pav = 0.0;
+        p.tmp1 = 0.0;
     }
     fclose(fp);
     iF++;
+    if(iF==limit)exit(3);
 }
 
 //関数04 バケット構造のメモリを確保する
@@ -102,12 +95,8 @@ void AlcBkt(void) {
     //なんで2.1なの？
     r = PCL_DST * 2.1;        //影響半径
     r2 = r * r;
-    bucket.min[0] = MIN_X;
-    bucket.min[1] = MIN_Y;
-    bucket.min[2] = MIN_Z;
-    bucket.max[0] = MAX_X;
-    bucket.max[1] = MAX_Y;
-    bucket.max[2] = MAX_Z;
+
+    for (int i = 0; i < ps.size(); i++) bucket.rangeUpdate(ps[i].Pos);
     bucket.rangeUpdateFinish(ps.size(), r * (1.0 + CRT_NUM));
 }
 
@@ -277,9 +266,10 @@ void ChkCol() {
 
 //関数10 仮の圧力を求める
 void MkPrs() {
-    if(false){
+    if(true){
         //ヤコビ法、ガウスザイデル法、越塚p54
         //http://www.yamamo10.jp/yamamoto/lecture/2006/5E/Linear_eauations/concrete_relax_html/node2.html
+
         for(int t=1;t<=100;t++){
             for (int i = 0; i < ps.size(); i++) {
                 Particle &pi = ps[i];
@@ -292,36 +282,34 @@ void MkPrs() {
                 for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
                     const Particle &pj = ps[*j];
                     const double dist2 = distance2(pj.Pos[0] - pos_ix, pj.Pos[1] - pos_iy,  pj.Pos[2] - pos_iz);
-                    if (dist2 > r2 || pj.Typ == GST) continue;
+                    if (dist2 > r2) continue;
                     if (*j != i){
                         const double dist = sqrt(dist2);
                         const double w = WEI(dist, r);
                         const double aij=-coeff*w;
-                        sum += aij*pj.Prs;
+                        double pjPrs=pj.Prs;
+                        if(pj.Typ == int(Type::WALL)){
+                            pjPrs = pi.Prs+9.8*Dns[pj.Typ]*(pi.Pos[2]-pj.Pos[2]);//手抜きの壁面境界条件
+                        }
+                        sum += aij*pjPrs;
                         ni_wsum += w;
                     }
                 }
-                const double aii=coeff*ni_wsum;
-                const double bi=(ni_wsum-n0)/(n0)/(DT*DT);
-                sum += aii*pi.Prs;
                 if(ni_wsum < 0.97*n0){
+                    //表層、表層から2層目の粒子はギリギリ表層と判定されなかった。
+                    //biは連続なので係数の誤りか収束の誤り
+                    pi.tmp1=ni_wsum;
                     pi.Prs=0;
                 }else{
+                    const double bi=(ni_wsum-n0)/(n0)/(DT*DT);
+                    const double aii=coeff*ni_wsum;
+                    pi.tmp1=ni_wsum;
+                    sum += aii*pi.Prs;
                     pi.Prs=(bi-sum)/aii;
-                }
-                if(pi.Typ == int(Type::WALL)){
-                    //手抜きの壁面境界条件
-                    pi.Prs =9.8*Dns[pi.Typ]*(1-pi.Pos[2]);
-                    pi.Prs=pi.Prs;
-                }
-                //デバッグ
-                if(0){
-                    if(t==100&&pi.Typ == int(Type::FLUID)){
-                        printf("%lf, %lf\n", pi.Pos[2], pi.Prs);
-                    }
                 }
             }
         }
+        WrtDat(100);
     }else{
         for (int i = 0; i < ps.size(); i++) {
             Particle &pi = ps[i];
@@ -356,7 +344,6 @@ void MkPrs() {
 
 //関数11 圧力勾配項を求める関数
 void PrsGrdTrm() {
-    const double A3 = -DIM / n0;//圧力勾配項の計算に用いる係数
     for (int i = 0; i < ps.size(); i++) {
         Particle &pi = ps[i];
         if (pi.Typ == FLD) {
@@ -394,9 +381,9 @@ void PrsGrdTrm() {
                     }
                 }
             }
-            pi.Acc[0] = Acc_x * invDns[FLD] * A3;
-            pi.Acc[1] = Acc_y * invDns[FLD] * A3;
-            pi.Acc[2] = Acc_z * invDns[FLD] * A3;
+            pi.Acc[0] = -DIM / n0 * Acc_x / Dns[FLD];
+            pi.Acc[1] = -DIM / n0 * Acc_y / Dns[FLD];
+            pi.Acc[2] = -DIM / n0 * Acc_z / Dns[FLD];
         }
     }
 }
@@ -440,7 +427,6 @@ void ClcEMPS(void) {
         PrsGrdTrm();//圧力勾配加速度
         UpPcl2();//移動
         // MkPrs();//仮圧力
-        for (int i = 0; i < ps.size(); i++) { ps[i].pav += ps[i].Prs; }
         iLP++;
         TIM += DT;
     }
