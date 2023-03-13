@@ -31,7 +31,7 @@ $$\rho\frac{D \boldsymbol{u}}{D t}=-\nabla p + \mu \nabla^2 \boldsymbol{u} + \rh
 ### 標準MPS法
 
 本節では標準MPS法の計算手順を説明する．MPS法は非圧縮性流れに対してSMAC(Simplified MAC)法と同様の，半陰的アルゴリズム（二段階法）で計算する．
-流速ベクトル$\boldsymbol{u}$と，位置ベクトル$\boldsymbol{r}$の更新は次式のように計算ステップにつき二段階で行う．第一段階においては外力項と粘性項の陽的計算を通して導かれた修正速度ベクトル$\delta\boldsymbol{u}^p$($p$:第一段階を示す)で更新し，第二段階においては陰的解法を通して導かれる圧力を用いた圧力勾配項による修正速度ベクトル$\delta\boldsymbol{u}^c$($c$:第二段階を示す)で更新する．
+流速ベクトル $\boldsymbol{u}$ と，位置ベクトル $ \boldsymbol{r} $ の更新は次式のように計算ステップにつき二段階で行う．第一段階においては外力項と粘性項の陽的計算を通して導かれた修正速度ベクトル $\delta\boldsymbol{u}^p$ ( $p$ :第一段階を示す)で更新し，第二段階においては陰的解法を通して導かれる圧力を用いた圧力勾配項による修正速度ベクトル $\delta\boldsymbol{u}^c$ ( $c$ :第二段階を示す)で更新する．
 \begin{equation}
 \label{eq_mps_update}
 \begin{aligned}
