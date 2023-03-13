@@ -58,7 +58,9 @@ $$\lambda=\frac{\sum_{j\neq i}\left[|\boldsymbol{r}_{ij}|^2 w(|\boldsymbol{r}_{i
 
 重み関数 $w(r)$ は本研究では以下の式\ref{eq:kernel}を用いた．
 
-$$w\left(r\right)=\left\{ \begin{array}{ll} \dfrac{r_e}{r}-1 & (0 \le r < r_e) \\ 0 & ( r_e \le r )\end{array}\right.$$
+```math
+w\left(r\right)=\left\{ \begin{array}{ll} \dfrac{r_e}{r}-1 & (0 \le r < r_e) \\ 0 & ( r_e \le r )\end{array}\right.
+```
 
 ここに， $r_e$ は影響半径である．粒子間の相互作用は粒子間距離が $r_e$ より小さい場合に計算され，各粒子間の接続関係が有限範囲で取り扱われる．本研究では $r_e=2.4d$ （ $d$ ：粒径）を影響半径として与えた
 
