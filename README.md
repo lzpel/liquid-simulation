@@ -30,19 +30,18 @@ $$\rho\frac{D \boldsymbol{u}}{D t}=-\nabla p + \mu \nabla^2 \boldsymbol{u} + \rh
 
 本節では標準MPS法の計算手順を説明する．MPS法は非圧縮性流れに対してSMAC(Simplified MAC)法と同様の，半陰的アルゴリズム（二段階法）で計算する．
 流速ベクトル  $\boldsymbol{u}$  と，位置ベクトル  $\boldsymbol{r}$  の更新は次式のように計算ステップにつき二段階で行う．第一段階においては外力項と粘性項の陽的計算を通して導かれた修正速度ベクトル  $\delta\boldsymbol{u}^p$  (  $p$  :第一段階を示す)で更新し，第二段階においては陰的解法を通して導かれる圧力を用いた圧力勾配項による修正速度ベクトル  $\delta\boldsymbol{u}^c$  (  $c$  :第二段階を示す)で更新する．
-$$ \boldsymbol{u}^\ast = \boldsymbol{u}^k+\delta\boldsymbol{u}^p$$
+
+$$\boldsymbol{u}^\ast = \boldsymbol{u}^k+\delta\boldsymbol{u}^p$$
 $$\boldsymbol{u}^{k+1} = \boldsymbol{u}^\ast+\delta\boldsymbol{u}^c$$
-$$ \boldsymbol{r}^\ast = \boldsymbol{r}^k+\boldsymbol{u}^k\Delta t+\delta\boldsymbol{u}^p\Delta t$$
+$$\boldsymbol{r}^\ast = \boldsymbol{r}^k+\boldsymbol{u}^k\Delta t+\delta\boldsymbol{u}^p\Delta t$$
 $$\boldsymbol{r}^{k+1} = \boldsymbol{r}^\ast+\delta\boldsymbol{u}^c\Delta t$$
+
 なお， $\Delta t$ は計算ステップの時間間隔，添字 $k$ は計算ステップを示す．各計算段階を以下に詳述する．
 
 #### 第一段階
 
 全流体粒子の第一段階の修正速度ベクトル $\delta\boldsymbol{u}^p$ は重力項(外力項)及び粘性項を用いて陽解法で求める．
-\begin{equation}
-\label{eq:mps1}
-\delta\boldsymbol{u}^p=\Delta t\left(\nu\nabla^2\boldsymbol{u}+\boldsymbol{g}\right)
-\end{equation}
+$$\delta\boldsymbol{u}^p=\Delta t\left(\nu\nabla^2\boldsymbol{u}+\boldsymbol{g}\right)$$
 ここに， $\nu$ は流体の動粘性係数， $\boldsymbol{g}$ は重力(外力)である．
 式\ref{eq:mps1}の離散化において，当該粒子 $i$ の粘性項のLaplacian( $\nabla^2$ )は以下に示すMPS法のLaplacianモデルによって離散化される．
 
