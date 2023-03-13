@@ -107,8 +107,7 @@ $$\nabla^2 p^{k+1}\_i=\frac{2 D_s}{\lambda n_0}\sum_{j\neq i}(p^{k+1}_j-p^{k+1}\
 
 式\ref{eq_mps_n2p}及び式\ref{eq_mps_n2p_laplacian}を陰的に解いて圧力 $p^{k+1}_i$ を求める．これは $N$ 個の粒子の場合，以下の $N$ 元連立方程式\ref{eq_mps_n2p_matrix}を解ベクトル $p^{k+1}_i$ について解くことと等しい．
 
-\begin{align}
-\small
+```math
 \label{eq_mps_n2p_matrix}
 \begin{pmatrix}
 -\dfrac{\rho_0}{(\Delta t)^2}\dfrac{n^\ast_1-n_0}{n_0}\\
@@ -143,7 +142,7 @@ p^{k+1}_1\\
 p^{k+1}_2\\\vdots\\
 p^{k+1}_N
 \end{pmatrix}
-\end{align}
+```
 ここで，式\ref{eq_mps_n2p_matrix}の係数行列は対称行列となり，また粒子の組み合わせは互いに影響半径外に位置する場合が殆どであるので疎行列でもある．境界条件として自由表面（水面）については粒子の圧力を0とするディリクレ境界条件を与え，壁面については圧力勾配が0となるノイマン境界条件を設定する．本研究では連立方程式の反復解法としてICCG法(不完全コレスキー分解付き共役勾配法)を用いた．
 
 以上の手順により，圧力のPoisson方程式(PPE)から圧力 $p^{k+1}$ が得られ式\ref{eq_mps_p2u}より第二段階における速度ベクトルの修正値 $\delta\boldsymbol{u}^c$ が得られる．最終的に得られた修正速度ベクトル $\delta\boldsymbol{u}^p$ ， $\delta \boldsymbol{u}^c$ を用いて式\ref{eq_mps_update}から粒子の位置と速度が更新され，1ステップの計算が完了する．
