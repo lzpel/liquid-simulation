@@ -46,7 +46,7 @@ $$\boldsymbol{r}^{k+1} = \boldsymbol{r}^\ast+\delta\boldsymbol{u}^c\Delta t$$
 全流体粒子の第一段階の修正速度ベクトル $\delta\boldsymbol{u}^p$ は重力項(外力項)及び粘性項を用いて陽解法で求める．
 $$\delta\boldsymbol{u}^p=\Delta t\left(\nu\nabla^2\boldsymbol{u}+\boldsymbol{g}\right)$$
 ここに， $\nu$ は流体の動粘性係数， $\boldsymbol{g}$ は重力(外力)である．
-式\ref{eq:mps1}の離散化において，当該粒子 $i$ の粘性項のLaplacian( $\nabla^2$ )は以下に示すMPS法のLaplacianモデルによって離散化される．
+上式の離散化において，当該粒子 $i$ の粘性項のLaplacian( $\nabla^2$ )は以下に示すMPS法のLaplacianモデルによって離散化される．
 
 $$\langle \nabla^2 \boldsymbol{u} \rangle_i^k=\frac{2 D_s}{\lambda n_0}\sum_{j \neq i}\left[(\boldsymbol{u}^k_j-\boldsymbol{u}^k_i)w(|\boldsymbol{r}^k_{ij}|)\right]$$
 
@@ -58,16 +58,8 @@ $$\lambda=\frac{\sum_{j\neq i}\left[|\boldsymbol{r}_{ij}|^2 w(|\boldsymbol{r}_{i
 
 重み関数 $w(r)$ は本研究では以下の式\ref{eq:kernel}を用いた．
 
-\begin{equation}
-\label{eq:kernel}
-w\left(r\right)=
-\left\{
-\begin{array}{ll}
-\dfrac{r_e}{r}-1 & (0 \le r < r_e) \\
-0 & ( r_e \le r )
-\end{array}
-\right.
-\end{equation}
+$$w\left(r\right)=\left\{ \begin{array}{ll} \dfrac{r_e}{r}-1 & (0 \le r < r_e) \\ 0 & ( r_e \le r )\end{array}\right.$$
+
 ここに， $r_e$ は影響半径である．粒子間の相互作用は粒子間距離が $r_e$ より小さい場合に計算され，各粒子間の接続関係が有限範囲で取り扱われる．本研究では $r_e=2.4d$ （ $d$ ：粒径）を影響半径として与えた
 
 - 第二段階 -
@@ -76,36 +68,24 @@ w\left(r\right)=
 
 当該粒子 $i$ の粒子数密度は以下の式\ref{eq_mps_n}で定義される．
 
-\begin{equation}
-\label{eq_mps_n}
-n=\sum_{j\neq i}w(|\boldsymbol{r}_{ij}|)
-\end{equation}
+$$n=\sum_{j\neq i}w(|\boldsymbol{r}_{ij}|)$$
 
 先に述べたように規則配列時の粒子数密度を初期粒子数密度 $n_0$ とし，非圧縮流体では第二段階終了時点で式\ref{eq_mps_nast}が満たされるように計算が進められる．
-\begin{equation}
-\label{eq_mps_nast}
-n_0=n^{k+1}=n^\ast+n^c
-\end{equation}
+
+$$n_0=n^{k+1}=n^\ast+n^c$$
+
 ここに， $n^\ast$ は第一段階終了時の粒子数密度， $n^c$ は第二段階での粒子数密度の修正値である．
 
 第二段階での速度修正量 $\delta\boldsymbol{u}^c$ は式\ref{eq_mps_p2u}のように表される．
 
-\begin{equation}
-\label{eq_mps_p2u}
-\delta\boldsymbol{u}^c=-\frac{\Delta t}{\rho} \nabla p^{k+1}
-\end{equation}
+$$\delta\boldsymbol{u}^c=-\frac{\Delta t}{\rho} \nabla p^{k+1}$$
+
 圧力勾配項の離散化は式\ref{eq:mps_dp}の勾配モデルが用いられる．
-\begin{equation}
-\label{eq:mps_dp}
-\begin{aligned}
-\langle \nabla p \rangle^{k+1}_i &= \frac{D_s}{n_0}\sum_{j \neq i}
-\left[\frac{p^{k+1}_j-\hat{p}^{k+1}_i}{|\boldsymbol{r}^\ast_{ij}|^2}\boldsymbol{r}^\ast_{ij}w(|\boldsymbol{r}^\ast_{ij}|)\right]
-\\
-\hat{p}_i &= \min_{j \in J}(p_i,p_j)
-&
-J &= \left\{j:|\boldsymbol{r}^\ast_{ij}|<r_e\right\}
-\end{aligned}
-\end{equation}
+
+$$\langle \nabla p \rangle^{k+1}\_i &= \frac{D_s}{n_0}\sum\_{j \neq i} \left[\frac{p^{k+1}_j-\hat{p}^{k+1}_i}{|\boldsymbol{r}^\ast_{ij}|^2}\boldsymbol{r}^\ast_{ij}w(|\boldsymbol{r}^\ast_{ij}|)\right]$$
+
+$$\hat{p}_i &= \min_{j \in J}(p_i,p_j) & J &= \left\{j:|\boldsymbol{r}^\ast_{ij}|<r_e\right\}$$
+
 なお，標準MPS法の圧力勾配モデルは，数値安定性を保つために粒子間力が常に非負（排斥力）となることを保証する． $\hat{p}_i$ は粒子 $i$ とその近傍粒子 $j$ の中での最小圧力値であり $p^{k+1}_j-\hat{p}^{k+1}_i$ は必ず非負となる．
 
 連続式\ref{eq:continuity}は密度 $\rho_i$ が粒子数密度 $n_i$ と式\ref{n2rho}に示す比例関係にあることを考慮し式\ref{eq_mps_n2u}と表される．
