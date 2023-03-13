@@ -58,7 +58,7 @@ $$\rho\frac{D \boldsymbol{u}}{D t}=-\nabla p + \mu \nabla^2 \boldsymbol{u} + \rh
 \label{eq:mps_laplacian}
 \langle \nabla^2 \boldsymbol{u} \rangle_i^k=\frac{2 D_s}{\lambda n_0}\sum_{j \neq i}\left[(\boldsymbol{u}^k_j-\boldsymbol{u}^k_i)w(|\boldsymbol{r}^k_{ij}|)\right]
 \end{equation}
-ここに， $D_s$ は空間次元数であり，3次元計算なら $D_s=3$ である． $n_0$ は初期粒子数密度， $\lambda$ は距離の二乗の重み平均であり，統計的な分散の増加を解析解と一致させるために導入される係数である．下付き文字 $i$ ， $j$ はそれぞれ， $i$ は注目する当該粒子， $j$ は当該粒子 $i$ の近傍粒子を示す． $\boldsymbol{r}_{ij}$ は粒子 $i,j$ 間の相対位置ベクトル( $\boldsymbol{r}_{ij}=\boldsymbol{r}_{j}-\boldsymbol{r}_{i}$ )である． $w(|\boldsymbol{r}^k_{ij}|)$ は重み関数（kernel）であり粒子間距離 $|\boldsymbol{r}^k_{ij}|$ の関数である．初期粒子数密度 $n_0$ 及び係数 $\lambda$ は計算開始時に規則配列下で以下の式\ref{eq:n_0}，\ref{eq:lambda}を用いて計算される．
+ここに， $D_s$ は空間次元数であり，3次元計算なら $D_s=3$ である． $n_0$ は初期粒子数密度， $\lambda$ は距離の二乗の重み平均であり，統計的な分散の増加を解析解と一致させるために導入される係数である．下付き文字 $i$ ， $j$ はそれぞれ， $i$ は注目する当該粒子， $j$ は当該粒子 $i$ の近傍粒子を示す．<span> $\boldsymbol{r}_{ij}$ </span> は粒子 $i,j$ 間の相対位置ベクトル(<span> $\boldsymbol{r}_{ij}=\boldsymbol{r}_{j}-\boldsymbol{r}_{i}$ </span>)である． $w(|\boldsymbol{r}^k_{ij}|)$ は重み関数（kernel）であり粒子間距離 $|\boldsymbol{r}^k_{ij}|$ の関数である．初期粒子数密度 $n_0$ 及び係数 $\lambda$ は計算開始時に規則配列下で以下の式\ref{eq:n_0}，\ref{eq:lambda}を用いて計算される．
 
 \begin{equation}
 \label{eq:n_0}
