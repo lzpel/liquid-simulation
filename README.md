@@ -89,31 +89,22 @@ $$J = \left(j:|\boldsymbol{r}^\ast_{ij}|<r_e\right)$$
 
 なお，標準MPS法の圧力勾配モデルは，数値安定性を保つために粒子間力が常に非負（排斥力）となることを保証する． $\hat{p}_i$ は粒子 $i$ とその近傍粒子 $j$ の中での最小圧力値であり $p^{k+1}_j-\hat{p}^{k+1}_i$ は必ず非負となる．
 
-連続式\ref{eq:continuity}は密度 $\rho_i$ が粒子数密度 $n_i$ と式\ref{n2rho}に示す比例関係にあることを考慮し式\ref{eq_mps_n2u}と表される．
+連続式\ref{eq:continuity}は密度 $\rho_i$ が粒子数密度 $n_i$ と次式に示す比例関係にあることを考慮し以下のように表される．
 
 $$\frac{\rho_i-\rho_0}{\rho_0}=\frac{n_i-n_0}{n_0}$$
 
-\begin{equation}
-\label{eq_mps_n2u}
-\frac{1}{n_0}\left(\frac{Dn}{Dt}\right)^c+\nabla\cdot\delta\boldsymbol{u}^c=0
-\end{equation}
+$$\frac{1}{n_0}\left(\frac{Dn}{Dt}\right)^c+\nabla\cdot\delta\boldsymbol{u}^c=0$$
 
-式\ref{eq_mps_nast}，式\ref{eq_mps_p2u}，式\ref{eq_mps_n2u}より以下のPoisson方程式(式\ref{eq_mps_n2p})が得られる．
+式\ref{eq_mps_nast}，式\ref{eq_mps_p2u}，式\ref{eq_mps_n2u}より以下のPoisson方程式が得られる．
 
-\begin{equation}
-\label{eq_mps_n2p}
-\nabla^2 p^{k+1}_i=-\frac{\rho_0}{(\Delta t)^2}\frac{n^\ast_i-n_0}{n_0}
-\end{equation}
+$$\nabla^2 p^{k+1}_i=-\frac{\rho_0}{(\Delta t)^2}\frac{n^\ast_i-n_0}{n_0}$$
 
 連続式から派生した式\ref{eq_mps_n2u}と合わせると，第一段階で生じる粒子数密度の $n_0$ からの変動 $\left(\frac{Dn}{Dt}\right)^p$ と第二段階での速度修正量 $\delta\boldsymbol{u}^c$ による粒子数密度の変動 $\left(\frac{Dn}{Dt}\right)^c$ が対応するように速度修正量 $\delta\boldsymbol{u}^c$ を与えることで粒子数密度の変動が相殺され体積保存性が保たれる事を意味する．
 
 式\ref{eq_mps_n2p}の離散化では左辺の圧力のLaplacian項に対し式\ref{eq:mps_laplacian}のLaplacianモデルを用いる．
 
-\begin{equation}
-\label{eq_mps_n2p_laplacian}
-\nabla^2 p^{k+1}_i
-=\frac{2 D_s}{\lambda n_0}\sum_{j\neq i}(p^{k+1}_j-p^{k+1}_i)w(|\boldsymbol{r}^\ast_{ij}|)
-\end{equation}
+$$\nabla^2 p^{k+1}\_i=\frac{2 D_s}{\lambda n_0}\sum_{j\neq i}(p^{k+1}_j-p^{k+1}\_i)w(|\boldsymbol{r}^\ast\_{ij}|)$$
+
 式\ref{eq_mps_n2p}及び式\ref{eq_mps_n2p_laplacian}を陰的に解いて圧力 $p^{k+1}_i$ を求める．これは $N$ 個の粒子の場合，以下の $N$ 元連立方程式\ref{eq_mps_n2p_matrix}を解ベクトル $p^{k+1}_i$ について解くことと等しい．
 
 \begin{align}
