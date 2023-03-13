@@ -50,13 +50,13 @@ $$\delta\boldsymbol{u}^p=\Delta t\left(\nu\nabla^2\boldsymbol{u}+\boldsymbol{g}\
 
 $$\langle \nabla^2 \boldsymbol{u} \rangle_i^k=\frac{2 D_s}{\lambda n_0}\sum_{j \neq i}\left[(\boldsymbol{u}^k_j-\boldsymbol{u}^k_i)w(|\boldsymbol{r}^k_{ij}|)\right]$$
 
-ここに， $D_s$ は空間次元数であり，3次元計算なら $D_s=3$ である． $n_0$ は初期粒子数密度， $\lambda$ は距離の二乗の重み平均であり，統計的な分散の増加を解析解と一致させるために導入される係数である．下付き文字 $i$ ， $j$ はそれぞれ， $i$ は注目する当該粒子， $j$ は当該粒子 $i$ の近傍粒子を示す． $\boldsymbol{r}\_{ij}$ は粒子 $i,j$ 間の相対位置ベクトル( $\boldsymbol{r}\_{ij}=\boldsymbol{r}\_{j}-\boldsymbol{r}\_{i}$ )である． $w(|\boldsymbol{r}^k_{ij}|)$ は重み関数（kernel）であり粒子間距離 $|\boldsymbol{r}^k_{ij}|$ の関数である．初期粒子数密度 $n_0$ 及び係数 $\lambda$ は計算開始時に規則配列下で以下の式\ref{eq:n_0}，\ref{eq:lambda}を用いて計算される．
+ここに， $D_s$ は空間次元数であり，3次元計算なら $D_s=3$ である． $n_0$ は初期粒子数密度， $\lambda$ は距離の二乗の重み平均であり，統計的な分散の増加を解析解と一致させるために導入される係数である．下付き文字 $i$ ， $j$ はそれぞれ， $i$ は注目する当該粒子， $j$ は当該粒子 $i$ の近傍粒子を示す． $\boldsymbol{r}\_{ij}$ は粒子 $i,j$ 間の相対位置ベクトル( $\boldsymbol{r}\_{ij}=\boldsymbol{r}\_{j}-\boldsymbol{r}\_{i}$ )である． $w(|\boldsymbol{r}^k_{ij}|)$ は重み関数（kernel）であり粒子間距離 $|\boldsymbol{r}^k_{ij}|$ の関数である．初期粒子数密度 $n_0$ 及び係数 $\lambda$ は計算開始時に規則配列下で以下の二式を用いて計算される．
 
 $$n_0=\sum_{j\neq i}w(|\boldsymbol{r}_{ij}|)$$
 
 $$\lambda=\frac{\sum_{j\neq i}\left[|\boldsymbol{r}_{ij}|^2 w(|\boldsymbol{r}_{ij}|)\right]}{\sum_{j\neq i}w(|\boldsymbol{r}_{ij}|)}$$
 
-重み関数 $w(r)$ は本稿では以下の式\ref{eq:kernel}を用いた．
+重み関数 $w(r)$ は本稿では次式を用いた．
 
 ```math
 w\left(r\right)=\left\{ \begin{array}{ll} \dfrac{r_e}{r}-1 & (0 \le r < r_e) \\ 0 & ( r_e \le r )\end{array}\right.
@@ -68,21 +68,21 @@ w\left(r\right)=\left\{ \begin{array}{ll} \dfrac{r_e}{r}-1 & (0 \le r < r_e) \\ 
 
 第一段階の計算終了時点では粒子数密度は初期粒子数密度とは異なる．第二段階では第一段階で除外された圧力勾配項が質量保存則を満たすように，すなわち粒子数密度を一定値に保つように圧力勾配項が働くことで連続体の非圧縮条件が満たされる．
 
-当該粒子 $i$ の粒子数密度は以下の式\ref{eq_mps_n}で定義される．
+当該粒子 $i$ の粒子数密度は次式で定義される．
 
 $$n=\sum_{j\neq i}w(|\boldsymbol{r}_{ij}|)$$
 
-先に述べたように規則配列時の粒子数密度を初期粒子数密度 $n_0$ とし，非圧縮流体では第二段階終了時点で式\ref{eq_mps_nast}が満たされるように計算が進められる．
+先に述べたように規則配列時の粒子数密度を初期粒子数密度 $n_0$ とし，非圧縮流体では第二段階終了時点で次式が満たされるように計算が進められる．
 
 $$n_0=n^{k+1}=n^\ast+n^c$$
 
 ここに， $n^\ast$ は第一段階終了時の粒子数密度， $n^c$ は第二段階での粒子数密度の修正値である．
 
-第二段階での速度修正量 $\delta\boldsymbol{u}^c$ は式\ref{eq_mps_p2u}のように表される．
+第二段階での速度修正量 $\delta\boldsymbol{u}^c$ は次式のように表される．
 
 $$\delta\boldsymbol{u}^c=-\frac{\Delta t}{\rho} \nabla p^{k+1}$$
 
-圧力勾配項の離散化は式\ref{eq:mps_dp}の勾配モデルが用いられる．
+圧力勾配項の離散化は次式の勾配モデルが用いられる．
 
 $$\langle \nabla p \rangle^{k+1}\_i = \frac{D_s}{n_0}\sum\_{j \neq i} \left(\frac{p^{k+1}\_j-\hat{p}^{k+1}\_i}{|\boldsymbol{r}^\ast\_{ij}|^2}\boldsymbol{r}^\ast_{ij}w(|\boldsymbol{r}^\ast_{ij}|)\right)$$
 
@@ -91,23 +91,25 @@ $$J = \left(j:|\boldsymbol{r}^\ast_{ij}|<r_e\right)$$
 
 なお，標準MPS法の圧力勾配モデルは，数値安定性を保つために粒子間力が常に非負（排斥力）となることを保証する． $\hat{p}_i$ は粒子 $i$ とその近傍粒子 $j$ の中での最小圧力値であり $p^{k+1}_j-\hat{p}^{k+1}_i$ は必ず非負となる．
 
-連続式\ref{eq:continuity}は密度 $\rho_i$ が粒子数密度 $n_i$ と次式に示す比例関係にあることを考慮し以下のように表される．
+密度 $\rho_i$ が粒子数密度 $n_i$ と次式に示す比例関係にあることを考慮し
 
 $$\frac{\rho_i-\rho_0}{\rho_0}=\frac{n_i-n_0}{n_0}$$
 
+連続式は以下のように表される．
+
 $$\frac{1}{n_0}\left(\frac{Dn}{Dt}\right)^c+\nabla\cdot\delta\boldsymbol{u}^c=0$$
 
-式\ref{eq_mps_nast}，式\ref{eq_mps_p2u}，式\ref{eq_mps_n2u}より以下のPoisson方程式が得られる．
+第二段階での速度修正量、第一段階終了時の粒子数密度の定義、連続式より以下のPoisson方程式が得られる．
 
 $$\nabla^2 p^{k+1}_i=-\frac{\rho_0}{(\Delta t)^2}\frac{n^\ast_i-n_0}{n_0}$$
 
 連続式から派生した式\ref{eq_mps_n2u}と合わせると，第一段階で生じる粒子数密度の $n_0$ からの変動 $\left(\frac{Dn}{Dt}\right)^p$ と第二段階での速度修正量 $\delta\boldsymbol{u}^c$ による粒子数密度の変動 $\left(\frac{Dn}{Dt}\right)^c$ が対応するように速度修正量 $\delta\boldsymbol{u}^c$ を与えることで粒子数密度の変動が相殺され体積保存性が保たれる事を意味する．
 
-式\ref{eq_mps_n2p}の離散化では左辺の圧力のLaplacian項に対し式\ref{eq:mps_laplacian}のLaplacianモデルを用いる．
+圧力のPoisson方程式の離散化では左辺の圧力のLaplacian項に対し次式のLaplacianモデルを用いる．
 
 $$\nabla^2 p^{k+1}\_i=\frac{2 D_s}{\lambda n_0}\sum_{j\neq i}(p^{k+1}_j-p^{k+1}\_i)w(|\boldsymbol{r}^\ast\_{ij}|)$$
 
-式\ref{eq_mps_n2p}及び式\ref{eq_mps_n2p_laplacian}を陰的に解いて圧力 $p^{k+1}_i$ を求める．これは $N$ 個の粒子の場合，以下の $N$ 元連立方程式\ref{eq_mps_n2p_matrix}を解ベクトル $p^{k+1}_i$ について解くことと等しい．
+圧力のPoisson方程式を陰的に解いて圧力 $p^{k+1}_i$ を求める．これは $N$ 個の粒子の場合，以下の $N$ 元連立方程式を解ベクトル $p^{k+1}_i$ について解くことと等しい．
 
 ```math
 \label{eq_mps_n2p_matrix}
@@ -145,7 +147,7 @@ p^{k+1}_2\\\vdots\\
 p^{k+1}_N
 \end{pmatrix}
 ```
-ここで，式\ref{eq_mps_n2p_matrix}の係数行列は対称行列となり，また粒子の組み合わせは互いに影響半径外に位置する場合が殆どであるので疎行列でもある．境界条件として自由表面（水面）については粒子の圧力を0とするディリクレ境界条件を与え，壁面については圧力勾配が0となるノイマン境界条件を設定する．本稿では連立方程式の反復解法としてICCG法(不完全コレスキー分解付き共役勾配法)を用いた．
+ここで，上式の係数行列は対称行列となり，また粒子の組み合わせは互いに影響半径外に位置する場合が殆どであるので疎行列でもある．境界条件として自由表面（水面）については粒子の圧力を0とするディリクレ境界条件を与え，壁面については圧力勾配が0となるノイマン境界条件を設定する．本稿では連立方程式の反復解法としてICCG法(不完全コレスキー分解付き共役勾配法)を用いた．
 
 以上の手順により，圧力のPoisson方程式(PPE)から圧力 $p^{k+1}$ が得られ式\ref{eq_mps_p2u}より第二段階における速度ベクトルの修正値 $\delta\boldsymbol{u}^c$ が得られる．最終的に得られた修正速度ベクトル $\delta\boldsymbol{u}^p$ ， $\delta \boldsymbol{u}^c$ を用いて式\ref{eq_mps_update}から粒子の位置と速度が更新され，1ステップの計算が完了する．
 
