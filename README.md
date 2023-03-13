@@ -32,8 +32,11 @@ $$\rho\frac{D \boldsymbol{u}}{D t}=-\nabla p + \mu \nabla^2 \boldsymbol{u} + \rh
 流速ベクトル  $\boldsymbol{u}$  と，位置ベクトル  $\boldsymbol{r}$  の更新は次式のように計算ステップにつき二段階で行う．第一段階においては外力項と粘性項の陽的計算を通して導かれた修正速度ベクトル  $\delta\boldsymbol{u}^p$  (  $p$  :第一段階を示す)で更新し，第二段階においては陰的解法を通して導かれる圧力を用いた圧力勾配項による修正速度ベクトル  $\delta\boldsymbol{u}^c$  (  $c$  :第二段階を示す)で更新する．
 
 $$\boldsymbol{u}^\ast = \boldsymbol{u}^k+\delta\boldsymbol{u}^p$$
+
 $$\boldsymbol{u}^{k+1} = \boldsymbol{u}^\ast+\delta\boldsymbol{u}^c$$
+
 $$\boldsymbol{r}^\ast = \boldsymbol{r}^k+\boldsymbol{u}^k\Delta t+\delta\boldsymbol{u}^p\Delta t$$
+
 $$\boldsymbol{r}^{k+1} = \boldsymbol{r}^\ast+\delta\boldsymbol{u}^c\Delta t$$
 
 なお， $\Delta t$ は計算ステップの時間間隔，添字 $k$ は計算ステップを示す．各計算段階を以下に詳述する．
@@ -45,21 +48,13 @@ $$\delta\boldsymbol{u}^p=\Delta t\left(\nu\nabla^2\boldsymbol{u}+\boldsymbol{g}\
 ここに， $\nu$ は流体の動粘性係数， $\boldsymbol{g}$ は重力(外力)である．
 式\ref{eq:mps1}の離散化において，当該粒子 $i$ の粘性項のLaplacian( $\nabla^2$ )は以下に示すMPS法のLaplacianモデルによって離散化される．
 
-\begin{equation}
-\label{eq:mps_laplacian}
-\langle \nabla^2 \boldsymbol{u} \rangle_i^k=\frac{2 D_s}{\lambda n_0}\sum_{j \neq i}\left[(\boldsymbol{u}^k_j-\boldsymbol{u}^k_i)w(|\boldsymbol{r}^k_{ij}|)\right]
-\end{equation}
+$$\langle \nabla^2 \boldsymbol{u} \rangle_i^k=\frac{2 D_s}{\lambda n_0}\sum_{j \neq i}\left[(\boldsymbol{u}^k_j-\boldsymbol{u}^k_i)w(|\boldsymbol{r}^k_{ij}|)\right]$$
+
 ここに， $D_s$ は空間次元数であり，3次元計算なら $D_s=3$ である． $n_0$ は初期粒子数密度， $\lambda$ は距離の二乗の重み平均であり，統計的な分散の増加を解析解と一致させるために導入される係数である．下付き文字 $i$ ， $j$ はそれぞれ， $i$ は注目する当該粒子， $j$ は当該粒子 $i$ の近傍粒子を示す． $\boldsymbol{r}\_{ij}$ は粒子 $i,j$ 間の相対位置ベクトル( $\boldsymbol{r}\_{ij}=\boldsymbol{r}\_{j}-\boldsymbol{r}\_{i}$ )である． $w(|\boldsymbol{r}^k_{ij}|)$ は重み関数（kernel）であり粒子間距離 $|\boldsymbol{r}^k_{ij}|$ の関数である．初期粒子数密度 $n_0$ 及び係数 $\lambda$ は計算開始時に規則配列下で以下の式\ref{eq:n_0}，\ref{eq:lambda}を用いて計算される．
 
-\begin{equation}
-\label{eq:n_0}
-n_0=\sum_{j\neq i}w(|\boldsymbol{r}_{ij}|)
-\end{equation}
+$$n_0=\sum_{j\neq i}w(|\boldsymbol{r}_{ij}|)$$
 
-\begin{equation}
-\label{eq:lambda}
-\lambda=\frac{\sum_{j\neq i}\left[|\boldsymbol{r}_{ij}|^2 w(|\boldsymbol{r}_{ij}|)\right]}{\sum_{j\neq i}w(|\boldsymbol{r}_{ij}|)}
-\end{equation}
+$$\lambda=\frac{\sum_{j\neq i}\left[|\boldsymbol{r}_{ij}|^2 w(|\boldsymbol{r}_{ij}|)\right]}{\sum_{j\neq i}w(|\boldsymbol{r}_{ij}|)}$$
 
 重み関数 $w(r)$ は本研究では以下の式\ref{eq:kernel}を用いた．
 
