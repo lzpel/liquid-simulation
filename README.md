@@ -82,9 +82,9 @@ $$\delta\boldsymbol{u}^c=-\frac{\Delta t}{\rho} \nabla p^{k+1}$$
 
 圧力勾配項の離散化は式\ref{eq:mps_dp}の勾配モデルが用いられる．
 
-$$\langle \nabla p \rangle^{k+1}\_i &= \frac{D_s}{n_0}\sum\_{j \neq i} \left[\frac{p^{k+1}_j-\hat{p}^{k+1}_i}{|\boldsymbol{r}^\ast_{ij}|^2}\boldsymbol{r}^\ast_{ij}w(|\boldsymbol{r}^\ast_{ij}|)\right]$$
+$$\langle \nabla p \rangle^{k+1}\_i &= \frac{D_s}{n_0}\sum\_{j \neq i} \left\{\frac{p^{k+1}\_j-\hat{p}^{k+1}\_i}{|\boldsymbol{r}^\ast\_{ij}|^2}\boldsymbol{r}^\ast_{ij}w(|\boldsymbol{r}^\ast_{ij}|)\right\}$$
 
-$$\hat{p}_i &= \min_{j \in J}(p_i,p_j) & J &= \left\{j:|\boldsymbol{r}^\ast_{ij}|<r_e\right\}$$
+$$\hat{p}\_i &= \min\_{j \in J}(p_i,p_j) & J &= \left\{j:|\boldsymbol{r}^\ast_{ij}|<r_e\right\}$$
 
 なお，標準MPS法の圧力勾配モデルは，数値安定性を保つために粒子間力が常に非負（排斥力）となることを保証する． $\hat{p}_i$ は粒子 $i$ とその近傍粒子 $j$ の中での最小圧力値であり $p^{k+1}_j-\hat{p}^{k+1}_i$ は必ず非負となる．
 
