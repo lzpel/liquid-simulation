@@ -82,7 +82,7 @@ $$\delta\boldsymbol{u}^c=-\frac{\Delta t}{\rho} \nabla p^{k+1}$$
 
 圧力勾配項の離散化は式\ref{eq:mps_dp}の勾配モデルが用いられる．
 
-$$\langle \nabla p \rangle^{k+1}\_i = \frac{D_s}{n_0}\sum\_{j \neq i} \left\{\frac{p^{k+1}\_j-\hat{p}^{k+1}\_i}{|\boldsymbol{r}^\ast\_{ij}|^2}\boldsymbol{r}^\ast_{ij}w(|\boldsymbol{r}^\ast_{ij}|)\right\}$$
+$$\langle \nabla p \rangle^{k+1}\_i = \frac{D_s}{n_0}\sum\_{j \neq i} \left(\frac{p^{k+1}\_j-\hat{p}^{k+1}\_i}{|\boldsymbol{r}^\ast\_{ij}|^2}\boldsymbol{r}^\ast_{ij}w(|\boldsymbol{r}^\ast_{ij}|)\right)$$
 
 $$\hat{p}\_i = \min\_{j \in J}(p_i,p_j) & J &= \left\{j:|\boldsymbol{r}^\ast_{ij}|<r_e\right\}$$
 
