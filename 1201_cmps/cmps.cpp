@@ -41,7 +41,7 @@ struct Particle {
     double Acc[3], Pos[3], Vel[3];
     double Prs, PrsNearMin;
     int Typ;
-    double tmp0, tmp1,tmp2;
+    double tmp0, tmp1, tmp2;
 };
 
 std::vector<Particle> ps;
@@ -74,20 +74,21 @@ void RdDat(void) {
 }
 
 //関数03 状態書き込み
-void WrtDat(int limit=-1) {
+void WrtDat(int limit = -1) {
     char outout_filename[256];
     sprintf(outout_filename, "output%05d.prof", iF);
     fp = fopen(outout_filename, "w");
     fprintf(fp, "%d\n", ps.size());
     for (int i = 0; i < ps.size(); i++) {
         Particle &p = ps[i];
-        fprintf(fp, "%d %lf %lf %lf %lf %lf %lf %lf %lf %lf\n", p.Typ, p.Pos[0], p.Pos[1], p.Pos[2], p.Vel[0], p.Vel[1], p.Vel[2], p.Prs, p.tmp0, p.tmp1);
+        fprintf(fp, "%d %lf %lf %lf %lf %lf %lf %lf %lf %lf\n", p.Typ, p.Pos[0], p.Pos[1], p.Pos[2], p.Vel[0], p.Vel[1],
+                p.Vel[2], p.Prs, p.tmp0, p.tmp1);
         //書き込みのタイミングで時間平均圧力をリセットしている
         p.tmp1 = 0.0;
     }
     fclose(fp);
     iF++;
-    if(iF==limit)exit(3);
+    if (iF == limit)exit(3);
 }
 
 //関数04 バケット構造のメモリを確保する
@@ -164,7 +165,7 @@ void VscTrm() {
             double vec_ix = pi.Vel[0];
             double vec_iy = pi.Vel[1];
             double vec_iz = pi.Vel[2];
-            for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+            for (const int *j = bucket.iterator(pi.Pos); *j != -1; j++) {
                 Particle &pj = ps[*j];
                 double v0 = pj.Pos[0] - pos_ix;
                 double v1 = pj.Pos[1] - pos_iy;
@@ -184,9 +185,19 @@ void VscTrm() {
                 }
             }
             //係数A1によってAccの次元が速度から加速度に変わる、また重力を加算
-            pi.Acc[0] = Acc_x * A1 + G_X;
-            pi.Acc[1] = Acc_y * A1 + G_Y;
-            pi.Acc[2] = Acc_z * A1 + G_Z;
+            pi.Acc[0] = 0;
+            pi.Acc[1] = 0;
+            pi.Acc[2] = 0;
+            if (false) {
+                pi.Acc[0] += Acc_x * A1;
+                pi.Acc[1] += Acc_y * A1;
+                pi.Acc[2] += Acc_z * A1;
+            }
+            if (true) {
+                pi.Acc[0] += G_X;
+                pi.Acc[1] += G_Y;
+                pi.Acc[2] += G_Z;
+            }
         }
     }
 }
@@ -224,7 +235,7 @@ void ChkCol() {
             double vec_ix2 = pi.Vel[0];
             double vec_iy2 = pi.Vel[1];
             double vec_iz2 = pi.Vel[2];
-            for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+            for (const int *j = bucket.iterator(pi.Pos); *j != -1; j++) {
                 Particle &pj = ps[*j];
                 //相対座標v=xj-xi
                 double v0 = pj.Pos[0] - pos_ix;
@@ -266,50 +277,47 @@ void ChkCol() {
 
 //関数10 仮の圧力を求める
 void MkPrs() {
-    if(true){
+    if (1) {
         //ヤコビ法、ガウスザイデル法、越塚p54
         //http://www.yamamo10.jp/yamamoto/lecture/2006/5E/Linear_eauations/concrete_relax_html/node2.html
 
-        for(int t=1;t<=100;t++){
+        for (int t = 1; t <= 100; t++) {
             for (int i = 0; i < ps.size(); i++) {
                 Particle &pi = ps[i];
                 if (pi.Typ == GST) continue;
-                double sum=0, ni_wsum=0;
-                const double coeff=(2*DIM)/(lmd*n0*Dns[pi.Typ]);
+                double sum = 0, ni_wsum = 0;
+                const double coeff = (2 * DIM) / (lmd * n0);
                 const double pos_ix = pi.Pos[0];
                 const double pos_iy = pi.Pos[1];
                 const double pos_iz = pi.Pos[2];
-                for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+                for (const int *j = bucket.iterator(pi.Pos); *j != -1; j++) {
                     const Particle &pj = ps[*j];
-                    const double dist2 = distance2(pj.Pos[0] - pos_ix, pj.Pos[1] - pos_iy,  pj.Pos[2] - pos_iz);
+                    const double dist2 = distance2(pj.Pos[0] - pos_ix, pj.Pos[1] - pos_iy, pj.Pos[2] - pos_iz);
                     if (dist2 > r2) continue;
-                    if (*j != i){
+                    if (*j != i) {
                         const double dist = sqrt(dist2);
                         const double w = WEI(dist, r);
-                        const double aij=-coeff*w;
-                        double pjPrs=pj.Prs;
-                        if(pj.Typ == int(Type::WALL)){
-                            pjPrs = pi.Prs+9.8*Dns[pj.Typ]*(pi.Pos[2]-pj.Pos[2]);//手抜きの壁面境界条件
-                        }
-                        sum += aij*pjPrs;
+                        const double aij = coeff * w;
+                        double pjPrs = pj.Prs;
+                        //if (pj.Typ == int(Type::WALL)) pjPrs = pi.Prs + 9.8 * Dns[pj.Typ] * (pi.Pos[2] - pj.Pos[2]);//手抜きの壁面境界条件
+                        sum += aij * pjPrs;
                         ni_wsum += w;
                     }
                 }
-                if(ni_wsum < 0.9999*n0){
-                    //表層、表層から2層目の粒子はギリギリ表層と判定されなかった。
+                pi.tmp1 = ni_wsum;
+                if (ni_wsum < 0.99 * n0) {
                     //biは連続なので係数の誤りか収束の誤り
-                    pi.tmp1=ni_wsum;
-                    pi.Prs=0;
-                }else{
-                    const double bi=(ni_wsum-n0)/(n0)/(DT*DT);
-                    const double aii=coeff*ni_wsum;
-                    pi.tmp1=ni_wsum;
-                    sum += aii*pi.Prs;
-                    pi.Prs=(bi-sum)/aii;
+                    pi.Prs = 0;
+                } else {
+                    const double bi = -((ni_wsum - n0) / (n0))*(Dns[pi.Typ] / (DT * DT));
+                    const double aii = coeff * -ni_wsum;
+                    sum += aii * pi.Prs;
+                    pi.Prs = (bi - sum) / aii;
+                    if(pi.Prs<0)pi.Prs=0;
                 }
             }
         }
-    }else{
+    } else {
         for (int i = 0; i < ps.size(); i++) {
             Particle &pi = ps[i];
             if (pi.Typ != GST) {
@@ -317,7 +325,7 @@ void MkPrs() {
                 double pos_iy = pi.Pos[1];
                 double pos_iz = pi.Pos[2];
                 double ni = 0.0;
-                for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+                for (const int *j = bucket.iterator(pi.Pos); *j != -1; j++) {
                     Particle &pj = ps[*j];
                     //相対座標v=xj-xi
                     double v0 = pj.Pos[0] - pos_ix;
@@ -346,10 +354,12 @@ void PrsGrdTrm() {
     for (int i = 0; i < ps.size(); i++) {
         Particle &pi = ps[i];
         if (pi.Typ == FLD) {
-            pi.PrsNearMin=DBL_MAX;
-            for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+            pi.PrsNearMin = DBL_MAX;
+            for (const int *j = bucket.iterator(pi.Pos); *j != -1; j++) {
                 Particle &pj = ps[*j];
-                if (distance2(pj.Pos[0] - pi.Pos[0],pj.Pos[1] - pi.Pos[1],pj.Pos[2] - pi.Pos[2]) < r2 && pj.Typ != GST) pi.PrsNearMin=fmin(pi.PrsNearMin,pj.Prs);
+                if (distance2(pj.Pos[0] - pi.Pos[0], pj.Pos[1] - pi.Pos[1], pj.Pos[2] - pi.Pos[2]) < r2 &&
+                    pj.Typ != GST)
+                    pi.PrsNearMin = fmin(pi.PrsNearMin, pj.Prs);
             }
         }
     }
@@ -362,7 +372,7 @@ void PrsGrdTrm() {
             double pos_ix = pi.Pos[0];
             double pos_iy = pi.Pos[1];
             double pos_iz = pi.Pos[2];
-            for (const int* j = bucket.iterator(pi.Pos); *j != -1; j++) {
+            for (const int *j = bucket.iterator(pi.Pos); *j != -1; j++) {
                 Particle &pj = ps[*j];
                 double v0 = pj.Pos[0] - pos_ix;
                 double v1 = pj.Pos[1] - pos_iy;
