@@ -19,7 +19,7 @@
 #define SND 22.0            //音速
 #define OPT_FQC 10        //出力間隔を決める反復数
 #define KNM_VSC 0.000001    //動粘性係数
-const int DIM = 2;                //次元数
+const int DIM = 3;                //次元数
 #define CRT_NUM 0.1        //クーラン条件数
 #define COL_RAT 0.2        //接近した粒子の反発率
 #define DST_LMT_RAT 0.9    //これ以上の粒子間の接近を許さない距離の係数
@@ -271,7 +271,7 @@ void MkPrs() {
         //ヤコビ法、ガウスザイデル法、越塚p54
         //http://www.yamamo10.jp/yamamoto/lecture/2006/5E/Linear_eauations/concrete_relax_html/node2.html
 
-        for (int t = 1; t <= 100; t++) {
+        for (int t = 1; t <= 50; t++) {
             for (int i = 0; i < ps.size(); i++) {
                 Particle &pi = ps[i];
                 if (pi.Typ == GST) continue;

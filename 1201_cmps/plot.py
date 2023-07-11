@@ -16,10 +16,11 @@ def main():
             fig = plt.figure(figsize=(8, 8))
 
             # データ
-            data = np.loadtxt(f, skiprows=1).T
-            x = data[1]
-            y = data[2]
-            z = data[3]
+            data = np.loadtxt(f, skiprows=1)
+            data = data[data[:, 0] == 1]
+            x = data[:, 1]
+            y = data[:, 2]
+            z = data[:, 3]
 
             if (y is not None) and np.ptp(y) > 0 and (z is not None) and np.ptp(z) > 0:
                 # z,y=y,z
@@ -47,7 +48,7 @@ def main():
             # ax.set_yticks([-5.0, -2.5, 0.0, 2.5, 5.0])
 
             # 曲線を描画
-            sc = ax.scatter(*([x, y] if z is None else [x, y, z]), s=3 ** 2, c=(data[0] if len(data) < 9 else data[7]))
+            sc = ax.scatter(*([x, y] if z is None else [x, y, z]), s=3 ** 2, c=(data[:, 7]))
             fig.colorbar(sc, aspect=40, pad=0.08, orientation='vertical')
 
             if 0:
