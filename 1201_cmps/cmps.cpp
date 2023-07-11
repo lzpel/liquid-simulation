@@ -185,19 +185,9 @@ void VscTrm() {
                 }
             }
             //係数A1によってAccの次元が速度から加速度に変わる、また重力を加算
-            pi.Acc[0] = 0;
-            pi.Acc[1] = 0;
-            pi.Acc[2] = 0;
-            if (false) {
-                pi.Acc[0] += Acc_x * A1;
-                pi.Acc[1] += Acc_y * A1;
-                pi.Acc[2] += Acc_z * A1;
-            }
-            if (true) {
-                pi.Acc[0] += G_X;
-                pi.Acc[1] += G_Y;
-                pi.Acc[2] += G_Z;
-            }
+            pi.Acc[0] = Acc_x * A1 + G_X;
+            pi.Acc[1] = Acc_y * A1 + G_Y;
+            pi.Acc[2] = Acc_z * A1 + G_Z;
         }
     }
 }
@@ -431,7 +421,7 @@ void ClcEMPS(void) {
         MkBkt();//バケット設定
         VscTrm();//粘性項重力項
         UpPcl1();//移動
-        //ChkCol();//剛体判定check collision
+        ChkCol();//剛体判定check collision
         MkPrs();//仮圧力
         PrsGrdTrm();//圧力勾配加速度
         UpPcl2();//移動
